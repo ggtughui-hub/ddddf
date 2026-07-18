@@ -429,7 +429,7 @@ local Config = {
 	AutoDepositJob = false,
 	DepositThreshold = 500,
 	Respawn = false,
-	SteakAutoFarm = false, -- ✅ إضافة خيار Steak
+	SteakAutoFarm = false, -- ✅ خيار Steak
 }
 
 local function c()
@@ -514,17 +514,14 @@ local function IsMeatCooked(grill)
     return status == "Cooked" or status == "Perfect"
 end
 
--- دالة التليفورت
-local function TeleportToSteak(pos)
-    Sf:Teleport(pos, true)
-    task.wait(0.5)
-end
-
--- دالة أخذ اللحم
+-- ========================================
+-- دالة أخذ اللحم من الثلاجة
+-- ========================================
 local function GetMeatFromFridge()
     print("🥩 جاري أخذ اللحم من الثلاجة...")
     
-    TeleportToSteak(STEAK_POS.Fridge)
+    Sf:Teleport(STEAK_POS.Fridge, Config.SteakAutoFarm)
+    task.wait(0.5)
     
     local fridge = GetFridge()
     if not fridge then
@@ -560,7 +557,9 @@ local function GetMeatFromFridge()
     return false
 end
 
+-- ========================================
 -- دالة الطهي
+-- ========================================
 local function CookMeat()
     print("🔥 جاري البحث عن شواية...")
     
@@ -574,7 +573,7 @@ local function CookMeat()
     local grill = grills[1]
     SteakFarm.CurrentGrill = grill.Model
     
-    TeleportToSteak(grill.Position + Vector3.new(0, 2, 0))
+    Sf:Teleport(grill.Position + Vector3.new(0, 2, 0), Config.SteakAutoFarm)
     task.wait(0.5)
     
     print("🍖 جاري الطهي...")
@@ -599,36 +598,36 @@ local function CookMeat()
     return false
 end
 
+-- ========================================
 -- الدالة الرئيسية
+-- ========================================
 local function StartSteakFarm()
     print("🥩 بدء فارم Steak...")
     
-    -- ========================================
-    -- 1. التحقق من التوظيف
-    -- ========================================
+    -- ✅ التوظيف بنفس طريقة الوظائف الأخرى
     if JobNow() ~= "steakhouse_cook" then
         print("🚶 جاري التوجه للتوظيف...")
-        TeleportToSteak(STEAK_POS.Apply)
-        
-        local beacon = workspace:FindFirstChild("SteakHouseBeacon")
-        if not beacon then
-            beacon = workspace.Map.Tiles.ShoppingTile.SteakHouse.Interior:FindFirstChild("SteakHouseBeacon")
-        end
-        
-        if beacon then
-            print("📋 جاري التقديم للوظيفة...")
-            Sf:Ac("apply_for_job", beacon)
-            task.wait(1)
+        local dist = distTo(STEAK_POS.Apply)
+        if dist < 10 then
+            local beacon = workspace:FindFirstChild("SteakHouseBeacon")
+            if not beacon then
+                beacon = workspace.Map.Tiles.ShoppingTile.SteakHouse.Interior:FindFirstChild("SteakHouseBeacon")
+            end
+            if beacon then
+                Sf:Ac("apply_for_job", beacon)
+                print("📋 تم إرسال طلب التوظيف")
+            else
+                print("❌ ما لقيت Beacon التوظيف")
+            end
         else
-            print("❌ ما لقيت Beacon التوظيف")
+            Sf:Teleport(STEAK_POS.Apply, Config.SteakAutoFarm)
         end
+        task.wait(1)
     else
         print("✅ أنت موظف في Steakhouse")
     end
     
-    -- ========================================
-    -- 2. حلقة الفارم
-    -- ========================================
+    -- ✅ حلقة الفارم
     while Config.SteakAutoFarm and SteakFarm.Active do
         local success = GetMeatFromFridge()
         if not success then

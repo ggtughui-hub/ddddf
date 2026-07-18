@@ -555,29 +555,35 @@ local function CookMeat()
     print("✅ تم استلام اللحم بنجاح!")
     SteakFarm.HasMeat = true
     
-    -- 4. التوجه لـ Beacon الطهي المخصص لك
-    local beacon = workspace:FindFirstChild("SteakGrillBeacon") or workspace:FindFirstChild("GrillBeacon") or workspace:FindFirstChild("SteakBeacon")
+    -- 4. البحث عن الـ Beacon (var44_upvw) والتوجه إليه
+    local beacon = nil
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and (string.find(string.lower(obj.Name), "beacon") or string.find(string.lower(obj.Name), "grill")) then
+            beacon = obj
+            break
+        end
+    end
     
     if beacon then
-        print("📍 التوجه إلى الـ Beacon للبدء...")
+        print("📍 تم تحديد الـ Beacon، التوجه إليه فوراً...")
         root.CFrame = beacon.CFrame + Vector3.new(0, 2, 0)
         task.wait(1.5)
         
-        print("🔥 تم الوصول، النظام بدأ الشواء تلقائياً!")
+        print("🔥 وصلت لمكان الطهي!")
         SteakFarm.IsCooking = true
         
-        -- 5. الانتظار حتى ينضج
+        -- 5. الانتظار حتى يكتمل الطهي
         local cookTimeout = tick() + 30
         while tick() < cookTimeout do
-            local status = char:GetAttribute("cooked_status") or ""
+            local status = beacon:GetAttribute("cooked_status") or ""
             if status == "Cooked" or status == "Perfect" then
-                print("✅ اكتمل الطهي!")
+                print("✅ اكتمل الطهي بنجاح!")
                 break
             end
             task.wait(0.5)
         end
     else
-        print("⚠️ لم يتم العثور على Beacon الطهي، تأكد من اسم الـ Beacon في الـ Workspace!")
+        print("⚠️ لم أجد الـ Beacon المخصص للطهي!")
         return false
     end
 

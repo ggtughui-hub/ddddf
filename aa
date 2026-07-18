@@ -496,21 +496,47 @@ local STEAK_POS = {
     Fridge = Vector3.new(-279.046, 252.909, 335.229),
 }
 
--- جلب الشوايات الفارغة من السيرفر
-local function GetRandomFreeGrill()
-    local assignedGrill = Net.get("get_random_free_grill")
-    if assignedGrill then
-        return assignedGrill
+-- دالة محسنة لاختيار الشواية الخاصة بك فقط
+local function GetMyAssignedGrill()
+    local GrillsFolder = workspace:FindFirstChild("Grills")
+    if not GrillsFolder then
+        -- إذا ما لقى مجلد Grills، يبحث في كل الـ workspace
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:IsA("Model") and obj.Name == "SteakGrill" then
+                local status = obj:GetAttribute("cooked_status")
+                if status == nil or status == "Empty" then
+                    return obj
+                end
+            end
+        end
+        return nil
+    end
+    
+    for _, grill in pairs(GrillsFolder:GetChildren()) do
+        local status = grill:GetAttribute("cooked_status")
+        if status == nil or status == "Empty" then
+            return grill
+        end
     end
     return nil
 end
 
--- دالة البحث عن GrillArea في الشواية
-local function GetGrillAreaPosition(grill)
-    if not grill then return nil end
-    local grillArea = grill:FindFirstChild("GrillArea")
-    if grillArea then
-        return grillArea:GetPivot().Position
+-- دالة التوجه للشواية المخصصة
+local function GoToMyGrill()
+    local myGrill = GetMyAssignedGrill()
+    
+    if myGrill then
+        local grillArea = myGrill:FindFirstChild("GrillArea")
+        if grillArea then
+            local targetPos = grillArea:GetPivot().Position + Vector3.new(0, 2, 0)
+            Sf:Teleport(targetPos, Config.SteakAutoFarm)
+            return myGrill
+        else
+            -- إذا ما لقى GrillArea يروح للشواية نفسها
+            local targetPos = myGrill:GetPivot().Position + Vector3.new(0, 2, 0)
+            Sf:Teleport(targetPos, Config.SteakAutoFarm)
+            return myGrill
+        end
     end
     return nil
 end
@@ -574,27 +600,13 @@ local function CookMeat()
     print("✅ تم استلام اللحم بنجاح!")
     SteakFarm.HasMeat = true
     
-    -- 4. طلب شواية من السيرفر
-    print("📡 جاري طلب شواية من السيرفر...")
-    local assignedGrill = GetRandomFreeGrill()
+    -- 4. التوجه للشواية المخصصة
+    print("📍 جاري البحث عن شواية متاحة...")
+    local myGrill = GoToMyGrill()
     
-    if assignedGrill then
-        print("✅ تم تخصيص شواية!")
-        
-        -- البحث عن GrillArea في الشواية
-        local grillAreaPos = GetGrillAreaPosition(assignedGrill)
-        
-        if grillAreaPos then
-            -- التوجه لموقع GrillArea
-            local targetPos = grillAreaPos + Vector3.new(0, 2, 0)
-            print("📍 التوجه إلى GrillArea...")
-            TeleportToSteak(targetPos)
-        else
-            -- إذا ما لقى GrillArea يروح للشواية نفسها
-            local grillPos = assignedGrill:GetPivot().Position + Vector3.new(0, 2, 0)
-            print("📍 التوجه إلى الشواية...")
-            TeleportToSteak(grillPos)
-        end
+    if myGrill then
+        print("✅ تم التوجه للشواية!")
+        SteakFarm.CurrentGrill = myGrill
         
         print("🔥 تم الوصول للشواية، سيبدأ الطهي تلقائياً!")
         SteakFarm.IsCooking = true
@@ -602,15 +614,18 @@ local function CookMeat()
         -- 5. انتظار النضج
         local cookTimeout = tick() + 30
         while tick() < cookTimeout do
-            local status = assignedGrill:GetAttribute("cooked_status") or ""
+            local status = myGrill:GetAttribute("cooked_status") or ""
             if status == "Cooked" or status == "Perfect" then
                 print("✅ اكتمل الطهي بنجاح!")
+                break
+            elseif status == "Overcooked" then
+                print("❌ احترق اللحم!")
                 break
             end
             task.wait(0.5)
         end
     else
-        print("❌ لم يتم الحصول على شواية من السيرفر!")
+        print("❌ لم يتم العثور على شواية متاحة!")
         return false
     end
 

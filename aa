@@ -1,5 +1,5 @@
 -- ============================================================================
--- 🔥 MERCY HUB - CORRECT PATHFINDING + STEAK ONLY MODE
+-- 🔥 MERCY HUB - FULL SYSTEM (STEAK EDITION)
 -- ============================================================================
 
 if not game:IsLoaded() then
@@ -9,35 +9,41 @@ end
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local PathfindingService = game:GetService("PathfindingService")
+local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local Backpack = LocalPlayer:WaitForChild("Backpack")
 local Humanoid = Character:WaitForChild("Humanoid")
 local RootPart = Character:WaitForChild("HumanoidRootPart")
 
--- إعادة تعريف المتغيرات عند الرسبون للحماية من التعليق
+-- [نظامك الأصلي] تحديث المتغيرات عند الرسبون والحماية من التجمد
 LocalPlayer.CharacterAdded:Connect(function(newCharacter)
     Character = newCharacter
     Humanoid = Character:WaitForChild("Humanoid")
     RootPart = Character:WaitForChild("HumanoidRootPart")
     Backpack = LocalPlayer:WaitForChild("Backpack")
+    
+    task.wait(0.5)
+    if Config.RemoveDoors then ClearObstacles() end
 end)
 
 local NetSend = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Send")
 local NetGet = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Get")
 
--- الإعدادات (تضم الحماية والأبواب ونظام المشي الذكي ووظيفة الستيك فقط)
-local Config = {
+-- [نظامك الأصلي] الإعدادات الكاملة بعد تنظيف الوظائف الأخرى
+_G.Config = {
     AutoSteak = false,
-    TeleportSpeed = 34,
+    RemoveDoors = true,
     AntiKill = true,
-    RemoveDoors = true
+    TeleportSpeed = 34,
+    WalkSpeed = 16
 }
+local Config = _G.Config
 
 -- ==========================================
--- 🛠️ 1️⃣ نظام حذف الأبواب والعوائق (Door Remover)
+-- 🛠️ 1️⃣ نظام حذف الأبواب والعوائق الأصلي (Door Remover)
 -- ==========================================
-local function ClearObstacles()
+function ClearObstacles()
     if not Config.RemoveDoors then return end
     pcall(function()
         if workspace:FindFirstChild("Map") then
@@ -68,16 +74,16 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🛡️ 2️⃣ أنظمة الحماية (Anti-Kill / Anti-Stuck)
+-- 🛡️ 2️⃣ أنظمة الحماية الكاملة الأصلية (Anti-Kill / Void Protection)
 -- ==========================================
 task.spawn(function()
-    while task.wait(1) do
+    while task.wait(0.5) do
         if Config.AntiKill and Humanoid and Humanoid.Health > 0 then
             pcall(function()
-                if Humanoid.FloorMaterial == Enum.CellMaterial.Empty and RootPart.Velocity.Y < -100 then
+                if Humanoid.FloorMaterial == Enum.CellMaterial.Empty and RootPart.Velocity.Y < -80 then
                     RootPart.Velocity = Vector3.new(RootPart.Velocity.X, 0, RootPart.Velocity.Z)
                 end
-                if RootPart.Position.Y < 200 then
+                if RootPart.Position.Y < 180 then
                     RootPart.CFrame = CFrame.new(RootPart.Position.X, 255, RootPart.Position.Z)
                 end
             end)
@@ -86,12 +92,11 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🚶‍♂️ 3️⃣ نظام المشي الذكي وحساب النقاط (Pathfinding Teleport)
+-- 🚶‍♂️ 3️⃣ نظام المشي الذكي الأصلي بالكامل (Pathfinding & Coordinates)
 -- ==========================================
 local function TeleportTo(destination)
-    if not Config.AutoSteak or Humanoid.Health <= 0 then return end
+    if not (Config.AutoSteak) or Humanoid.Health <= 0 then return end
     
-    -- إنشاء المسار الذكي لتفادي التعليق في الجدران
     local path = PathfindingService:CreatePath({
         AgentCanJump = true,
         AgentHeight = 8,
@@ -99,28 +104,27 @@ local function TeleportTo(destination)
         Costs = { DoorArea = 1 }
     })
     
-    pcall(function() path:ComputeAsync(RootPart.Position, destination) end)
+    local success, err = pcall(function() path:ComputeAsync(RootPart.Position, destination) end)
     
-    if path.Status == Enum.PathStatus.Success then
+    if success and path.Status == Enum.PathStatus.Success then
         local waypoints = path:GetWaypoints()
         for _, wp in pairs(waypoints) do
-            if not Config.AutoSteak or Humanoid.Health <= 0 then break end
+            if not (Config.AutoSteak) or Humanoid.Health <= 0 then break end
             
-            local targetPos = wp.Position + Vector3.new(0, 4, 0) -- رفع النقطة قليلاً لمنع الارتطام بالأرض
+            local targetPos = wp.Position + Vector3.new(0, 3.8, 0)
             local startPos = RootPart.Position
             local dir = (targetPos - startPos).Unit
             local dist = (targetPos - startPos).Magnitude
             local movedDist = 0
             local startTime = tick()
             
-            -- إلغاء اصطدام الشخصية أثناء التنقل الداخلي لحمايتها
             pcall(function()
                 for _, part in pairs(Character:GetDescendants()) do
                     if part:IsA("BasePart") then part.CanCollide = false end
                 end
             end)
             
-            while movedDist < dist and Config.AutoSteak do
+            while movedDist < dist and (Config.AutoSteak) do
                 task.wait()
                 if Humanoid.Sit then Humanoid.Sit = false end
                 local elapsedTime = tick() - startTime
@@ -129,6 +133,9 @@ local function TeleportTo(destination)
                 NetSend:FireServer(0, "set_sprinting_1", true)
             end
         end
+    else
+        -- نظام تراجع تلقائي سلس في حال فشل الـ Pathfinding المؤقت
+        RootPart.CFrame = CFrame.new(destination + Vector3.new(0, 2, 0))
     end
 end
 
@@ -137,7 +144,7 @@ local function distTo(v3)
 end
 
 -- ==========================================
--- 🥩 4️⃣ اللوب الأساسي لوظيفة الـ Steak فقط
+-- 🥩 4️⃣ اللوب الأساسي لوظيفة الـ Steak
 -- ==========================================
 task.spawn(function()
     ClearObstacles()
@@ -146,7 +153,6 @@ task.spawn(function()
             
             local currentJob = LocalPlayer:GetAttribute('Job')
             if currentJob ~= "steakhouse_cook" then
-                print("💼 التوجه لأخذ وظيفة الطاهي...")
                 local jobBeacon = Vector3.new(-262.798, 252.909, 343.73)
                 if distTo(jobBeacon) > 5 then
                     TeleportTo(jobBeacon)
@@ -217,7 +223,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 📱 5️⃣ الواجهة العائمة المستقرة (Floating Toggle Button)
+-- 📱 5️⃣ واجهتك الكاملة والأصلية (Persistent GUI)
 -- ==========================================
 local CoreGui = game:GetService("CoreGui")
 if CoreGui:FindFirstChild("MercyHub_SteakOnly") then
@@ -229,9 +235,10 @@ ScreenGui.Name = "MercyHub_SteakOnly"
 ScreenGui.ResetOnSpawn = false
 pcall(function() ScreenGui.Parent = CoreGui end)
 
+-- اللوحة الرئيسية الأصلية
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.fromOffset(170, 70)
-MainFrame.Position = UDim2.new(0.5, -85, 0.15, 0)
+MainFrame.Size = UDim2.fromOffset(200, 140)
+MainFrame.Position = UDim2.new(0.5, -100, 0.2, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
@@ -247,19 +254,21 @@ UIStroke.Color = Color3.fromRGB(235, 94, 40)
 UIStroke.Thickness = 2
 UIStroke.Parent = MainFrame
 
+-- العنوان الأصلي للسكربت الخاص بك
 local TitleLabel = Instance.new("TextLabel")
-TitleLabel.Size = UDim2.new(1, 0, 0.35, 0)
-TitleLabel.Position = UDim2.new(0, 0, 0.05, 0)
+TitleLabel.Size = UDim2.new(1, 0, 0.25, 0)
+TitleLabel.Position = UDim2.new(0, 0, 0, 0)
 TitleLabel.BackgroundTransparency = 1
-TitleLabel.Text = "MERCY HUB (PATHFINDING)"
+TitleLabel.Text = "MERCY HUB — STEAK ONLY"
 TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 TitleLabel.Font = Enum.Font.GothamBold
-TitleLabel.TextSize = 10
+TitleLabel.TextSize = 12
 TitleLabel.Parent = MainFrame
 
+-- زر تفعيل الـ Steak
 local ToggleBtn = Instance.new("TextButton")
-ToggleBtn.Size = UDim2.new(0.9, 0, 0.45, 0)
-ToggleBtn.Position = UDim2.new(0.05, 0, 0.45, 0)
+ToggleBtn.Size = UDim2.new(0.9, 0, 0.28, 0)
+ToggleBtn.Position = UDim2.new(0.05, 0, 0.3, 0)
 ToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
 ToggleBtn.Text = "Auto Steak: OFF"
 ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -271,17 +280,43 @@ local BtnCorner = Instance.new("UICorner")
 BtnCorner.CornerRadius = UDim.new(0, 6)
 BtnCorner.Parent = ToggleBtn
 
+-- زر تفعيل حذف الأبواب
+local DoorBtn = Instance.new("TextButton")
+DoorBtn.Size = UDim2.new(0.9, 0, 0.28, 0)
+DoorBtn.Position = UDim2.new(0.05, 0, 0.64, 0)
+DoorBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+DoorBtn.Text = "Door Remover: ON"
+DoorBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+DoorBtn.Font = Enum.Font.GothamBold
+DoorBtn.TextSize = 12
+DoorBtn.Parent = MainFrame
+
+local DoorCorner = Instance.new("UICorner")
+DoorCorner.CornerRadius = UDim.new(0, 6)
+DoorCorner.Parent = DoorBtn
+
+-- تشغيل المنطق البرمجي للأزرار
 ToggleBtn.MouseButton1Click:Connect(function()
     Config.AutoSteak = not Config.AutoSteak
     if Config.AutoSteak then
         ToggleBtn.Text = "Auto Steak: ON"
         ToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
-        UIStroke.Color = Color3.fromRGB(0, 255, 120)
     else
         ToggleBtn.Text = "Auto Steak: OFF"
         ToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
-        UIStroke.Color = Color3.fromRGB(235, 94, 40)
     end
 end)
 
-print("✅ تم استرجاع نظام المشي الذكي بنجاح وتثبيت حماية الأبواب والشخصية!")
+DoorBtn.MouseButton1Click:Connect(function()
+    Config.RemoveDoors = not Config.RemoveDoors
+    if Config.RemoveDoors then
+        DoorBtn.Text = "Door Remover: ON"
+        DoorBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+        ClearObstacles()
+    else
+        DoorBtn.Text = "Door Remover: OFF"
+        DoorBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+    end
+end)
+
+print("✅ تم استرجاع النظام بالكامل وحذف الوظائف الجانبية الأخرى بنجاح!")

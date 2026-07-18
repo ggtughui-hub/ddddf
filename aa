@@ -477,11 +477,14 @@ end
 function ClearPathLines() end
 
 -- ========================================
--- 🥩 STEAK FARM - فقط التعرف على Beacon و Arrow والمشي إليها
+-- 🥩 STEAK FARM - نظام كامل
 -- ========================================
 
 local SteakFarm = {
     Active = false,
+    IsCooking = false,
+    HasMeat = false,
+    CurrentGrill = nil,
 }
 
 -- متغيرات لتخزين الـ Beacon والـ Arrow
@@ -489,34 +492,53 @@ local SteakBeacon = nil
 local SteakArrow = nil
 
 -- ========================================
--- دالة البحث عن الـ Beacon
+-- دالة الحصول على شواية من السيرفر
 -- ========================================
-local function FindBeacon()
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("Model") and obj.Name == "Beacon" then
-            local beaconPart = obj:FindFirstChildWhichIsA("BasePart")
-            if beaconPart then
-                return obj
-            end
-        end
+local function GetRandomFreeGrill()
+    print("📡 جاري طلب شواية من السيرفر...")
+    local assignedGrill = Net.get("get_random_free_grill")
+    if assignedGrill then
+        print("✅ تم الحصول على شواية من السيرفر!")
+        return assignedGrill
     end
+    print("❌ لم يتم الحصول على شواية من السيرفر!")
     return nil
 end
 
 -- ========================================
--- دالة البحث عن الـ Arrow
+-- دالة إنشاء الـ Beacon و Arrow
 -- ========================================
-local function FindArrow()
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("BasePart") and string.find(string.lower(obj.Name or ""), "arrow") then
-            return obj
-        end
-        -- بعض الأحيان الـ Arrow يكون Model
-        if obj:IsA("Model") and string.find(string.lower(obj.Name or ""), "arrow") then
-            return obj
-        end
+local function CreateGrillBeaconAndArrow(grill)
+    if not grill then return nil end
+    
+    -- البحث عن GrillArea
+    local grillArea = grill:FindFirstChild("GrillArea")
+    if not grillArea then
+        print("❌ ما لقيت GrillArea في الشواية")
+        return nil
     end
-    return nil
+    
+    -- حذف الـ Beacon القديم إذا كان موجود
+    if SteakBeacon then
+        SteakBeacon:Destroy()
+        SteakBeacon = nil
+    end
+    
+    -- حذف الـ Arrow القديم إذا كان موجود
+    if SteakArrow then
+        SteakArrow:Destroy()
+        SteakArrow = nil
+    end
+    
+    -- إنشاء Beacon جديد
+    SteakBeacon = JobUtil.place_beacon(grillArea.Position - Vector3.new(0, grillArea.Size.Y / 2, 0), true)
+    print("📍 تم إنشاء Beacon للشواية")
+    
+    -- إنشاء Arrow جديد
+    SteakArrow = JobUtil.create_arrow(CharModule.get_hrp(), SteakBeacon:FindFirstChildWhichIsA("BasePart"))
+    print("📍 تم إنشاء Arrow للتوجيه")
+    
+    return SteakBeacon
 end
 
 -- ========================================
@@ -537,11 +559,9 @@ local function WalkToBeacon()
     local targetPos = beaconPart.Position + Vector3.new(0, 2, 0)
     print("🚶 جاري التوجه إلى الـ Beacon...")
     
-    -- استخدام Sf:Teleport للمشي إلى الـ Beacon
     Sf:Teleport(targetPos, Config.SteakAutoFarm)
     task.wait(1)
     
-    -- التحقق من الوصول
     local dist = distTo(targetPos)
     if dist < 5 then
         print("✅ تم الوصول إلى الـ Beacon")
@@ -556,45 +576,39 @@ end
 -- الدالة الرئيسية - StartSteakFarm
 -- ========================================
 local function StartSteakFarm()
-    print("🥩 بدء البحث عن الـ Beacon و Arrow...")
+    print("🥩 بدء فارم Steak...")
     
     while Config.SteakAutoFarm and SteakFarm.Active do
-        -- 1. البحث عن الـ Beacon
-        SteakBeacon = FindBeacon()
+        -- 1. طلب شواية من السيرفر
+        local assignedGrill = GetRandomFreeGrill()
         
-        if SteakBeacon then
-            print("✅ تم العثور على الـ Beacon!")
-            
-            -- 2. البحث عن الـ Arrow
-            SteakArrow = FindArrow()
-            
-            if SteakArrow then
-                print("✅ تم العثور على الـ Arrow!")
-            else
-                print("⚠️ لم يتم العثور على الـ Arrow")
-            end
+        if assignedGrill then
+            -- 2. إنشاء Beacon و Arrow
+            CreateGrillBeaconAndArrow(assignedGrill)
             
             -- 3. التوجه إلى الـ Beacon
-            local walked = WalkToBeacon()
-            
-            if walked then
-                print("✅ تم الوصول إلى الـ Beacon بنجاح!")
-            else
-                print("❌ فشل التوجه إلى الـ Beacon")
+            if SteakBeacon then
+                WalkToBeacon()
             end
             
-            -- 4. تنظيف المتغيرات
-            SteakBeacon = nil
-            SteakArrow = nil
+            -- 4. تنظيف
+            if SteakBeacon then
+                SteakBeacon:Destroy()
+                SteakBeacon = nil
+            end
+            if SteakArrow then
+                SteakArrow:Destroy()
+                SteakArrow = nil
+            end
             
             task.wait(2)
         else
-            print("⏳ لم يتم العثور على الـ Beacon، انتظار...")
-            task.wait(1)
+            print("⏳ لم يتم الحصول على شواية، إعادة المحاولة...")
+            task.wait(2)
         end
     end
     
-    print("🛑 توقف البحث عن Beacon")
+    print("🛑 توقف فارم Steak")
 end
 
 func['SteakFarm'] = StartSteakFarm
@@ -696,7 +710,7 @@ FarmTab:Section({
 })
 
 FarmTab:Toggle({
-    Title = "Auto Walk to Beacon",
+    Title = "Auto Farm Steak",
     Icon = "check",
     Type = "Checkbox",
     Value = false,
@@ -724,9 +738,9 @@ local StatusLabel = FarmTab:Button({
 task.spawn(function()
     while task.wait(0.5) do
         if Config.SteakAutoFarm then
-            local status = "🔍 Searching for Beacon..."
+            local status = "📡 Requesting grill..."
             if SteakBeacon then
-                status = "📍 Beacon found, walking..."
+                status = "📍 Walking to Beacon..."
             end
             StatusLabel:SetDesc(status)
         else

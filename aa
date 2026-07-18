@@ -477,6 +477,25 @@ end
 function ClearPathLines() end
 
 -- ========================================
+-- تعريف متغير للتحكم في الحالة
+-- ========================================
+getgenv().AllowAutoGrill = false
+
+-- ========================================
+-- Hook للـ Net.get لمنع طلب الشواية التلقائي
+-- ========================================
+local oldNetGet
+oldNetGet = hookfunction(Net.get, function(name, ...)
+    if name == "get_random_free_grill" then
+        if not getgenv().AllowAutoGrill then
+            print("❌ تم حجب طلب الشواية التلقائي!")
+            return nil -- يمنع الطلب من الوصول للسيرفر
+        end
+    end
+    return oldNetGet(name, ...)
+end)
+
+-- ========================================
 -- 🥩 STEAK FARM - نظام كامل
 -- ========================================
 

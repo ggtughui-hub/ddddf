@@ -1,4 +1,4 @@
--- إنشاء نافذة GUI للمراقبة
+-- إنشاء نافذة الـ GUI
 local CoreGui = game:GetService("CoreGui")
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "FarmMonitor"
@@ -17,7 +17,7 @@ local Layout = Instance.new("UIListLayout")
 Layout.Parent = Frame
 Layout.Padding = UDim.new(0, 5)
 
--- النصوص داخل القائمة
+-- النصوص
 local HoldingLabel = Instance.new("TextLabel")
 HoldingLabel.Size = UDim2.new(1, 0, 0.5, 0)
 HoldingLabel.BackgroundTransparency = 1
@@ -29,12 +29,13 @@ local GrillLabel = Instance.new("TextLabel")
 GrillLabel.Size = UDim2.new(1, 0, 0.5, 0)
 GrillLabel.BackgroundTransparency = 1
 GrillLabel.TextColor3 = Color3.new(1, 1, 1)
-GrillLabel.Text = "Grill: Waiting..."
+GrillLabel.Text = "Grill: Idle"
 GrillLabel.Parent = Frame
 
--- المنطق التلقائي للمراقبة والطلب
+-- المنطق البرمجي (الطلب لمرة واحدة فقط)
+local hasRequested = false
+
 task.spawn(function()
-    local hasRequested = false 
     while task.wait(0.5) do
         local char = game.Players.LocalPlayer.Character
         local tool = char and char:FindFirstChildOfClass("Tool")
@@ -46,20 +47,25 @@ task.spawn(function()
             HoldingLabel.Text = "Holding: Nothing"
         end
 
-        -- الطلب التلقائي عند حمل Steak
+        -- منطق الطلب: إذا كان معك "Steak" ولم نطلب شواية من قبل
         if tool and tool.Name == "Steak" and not hasRequested then
-            GrillLabel.Text = "Grill: Searching..."
-            local Event = game:GetService("ReplicatedStorage").Remotes.Get
-            local Result = table.pack(Event:InvokeServer(21, "get_random_free_grill"))
+            hasRequested = true -- قفل الطلبات فوراً
+            GrillLabel.Text = "Grill: Requesting..."
             
-            if Result[1] then
-                GrillLabel.Text = "✅ ظهرت الشواية الخاصة بك"
-                hasRequested = true 
+            local success, result = pcall(function()
+                return game:GetService("ReplicatedStorage").Remotes.Get:InvokeServer(21, "get_random_free_grill")
+            end)
+            
+            if success and result and result[1] then
+                GrillLabel.Text = "✅ Grill Assigned"
             else
-                GrillLabel.Text = "❌ لم يتم العثور على شواية"
+                GrillLabel.Text = "❌ Request Failed"
             end
-        elseif not tool or tool.Name ~= "Steak" then
-            hasRequested = false -- إعادة الضبط عند وضع اللحم
+            
+        -- إعادة ضبط النظام إذا تركت اللحم
+        elseif (not tool or tool.Name ~= "Steak") and hasRequested then
+            hasRequested = false
+            GrillLabel.Text = "Grill: Idle"
         end
     end
 end)

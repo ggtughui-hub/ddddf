@@ -496,47 +496,40 @@ local STEAK_POS = {
     Fridge = Vector3.new(-279.046, 252.909, 335.229),
 }
 
--- دالة محسنة لاختيار الشواية الخاصة بك فقط
-local function GetMyAssignedGrill()
-    local GrillsFolder = workspace:FindFirstChild("Grills")
-    if not GrillsFolder then
-        -- إذا ما لقى مجلد Grills، يبحث في كل الـ workspace
-        for _, obj in pairs(workspace:GetDescendants()) do
-            if obj:IsA("Model") and obj.Name == "SteakGrill" then
-                local status = obj:GetAttribute("cooked_status")
-                if status == nil or status == "Empty" then
-                    return obj
-                end
+-- متغير لتخزين الشواية المخصصة
+local MyAssignedGrill = nil
+
+-- دالة للحصول على الشواية المخصصة من any_new_result1_upvr
+local function GetAssignedGrillFromGame()
+    -- البحث عن الشواية التي تم تخصيصها عن طريق الـ Beacon أو الـ Arrow
+    -- أو البحث عن الشواية التي حالتها "Cooking" أو "Empty"
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and obj.Name == "SteakGrill" then
+            -- التحقق إذا كانت الشواية تحتوي على Beacon أو Arrow
+            local beacon = obj:FindFirstChild("Beacon")
+            local arrow = obj:FindFirstChild("Arrow")
+            
+            -- إذا كانت الشواية تحتوي على Beacon أو Arrow، فهي المخصصة لك
+            if beacon or arrow then
+                return obj
             end
-        end
-        return nil
-    end
-    
-    for _, grill in pairs(GrillsFolder:GetChildren()) do
-        local status = grill:GetAttribute("cooked_status")
-        if status == nil or status == "Empty" then
-            return grill
+            
+            -- أو التحقق من user_id_assigned
+            local userId = obj:GetAttribute("user_id_assigned") or 0
+            if userId == game.Players.LocalPlayer.UserId then
+                return obj
+            end
         end
     end
     return nil
 end
 
--- دالة التوجه للشواية المخصصة
-local function GoToMyGrill()
-    local myGrill = GetMyAssignedGrill()
-    
-    if myGrill then
-        local grillArea = myGrill:FindFirstChild("GrillArea")
-        if grillArea then
-            local targetPos = grillArea:GetPivot().Position + Vector3.new(0, 2, 0)
-            Sf:Teleport(targetPos, Config.SteakAutoFarm)
-            return myGrill
-        else
-            -- إذا ما لقى GrillArea يروح للشواية نفسها
-            local targetPos = myGrill:GetPivot().Position + Vector3.new(0, 2, 0)
-            Sf:Teleport(targetPos, Config.SteakAutoFarm)
-            return myGrill
-        end
+-- دالة البحث عن GrillArea في الشواية
+local function GetGrillAreaPosition(grill)
+    if not grill then return nil end
+    local grillArea = grill:FindFirstChild("GrillArea")
+    if grillArea then
+        return grillArea:GetPivot().Position
     end
     return nil
 end
@@ -600,13 +593,42 @@ local function CookMeat()
     print("✅ تم استلام اللحم بنجاح!")
     SteakFarm.HasMeat = true
     
-    -- 4. التوجه للشواية المخصصة
-    print("📍 جاري البحث عن شواية متاحة...")
-    local myGrill = GoToMyGrill()
+    -- ========================================
+    -- 4. الحصول على الشواية المخصصة من any_new_result1_upvr
+    -- ========================================
+    print("📍 جاري البحث عن الشواية المخصصة...")
     
-    if myGrill then
-        print("✅ تم التوجه للشواية!")
-        SteakFarm.CurrentGrill = myGrill
+    -- محاولة الحصول على الشواية المخصصة
+    MyAssignedGrill = GetAssignedGrillFromGame()
+    
+    -- إذا ما لقى، نحاول ننتظر شوية
+    if not MyAssignedGrill then
+        print("⏳ انتظار تخصيص الشواية...")
+        local waitTimeout = tick() + 5
+        while not MyAssignedGrill and tick() < waitTimeout do
+            task.wait(0.5)
+            MyAssignedGrill = GetAssignedGrillFromGame()
+        end
+    end
+    
+    if MyAssignedGrill then
+        print("✅ تم العثور على الشواية المخصصة!")
+        SteakFarm.CurrentGrill = MyAssignedGrill
+        
+        -- البحث عن GrillArea في الشواية المخصصة
+        local grillAreaPos = GetGrillAreaPosition(MyAssignedGrill)
+        
+        if grillAreaPos then
+            -- التوجه لموقع GrillArea
+            local targetPos = grillAreaPos + Vector3.new(0, 2, 0)
+            print("📍 التوجه إلى GrillArea...")
+            TeleportToSteak(targetPos)
+        else
+            -- إذا ما لقى GrillArea يروح للشواية نفسها
+            local grillPos = MyAssignedGrill:GetPivot().Position + Vector3.new(0, 2, 0)
+            print("📍 التوجه إلى الشواية...")
+            TeleportToSteak(grillPos)
+        end
         
         print("🔥 تم الوصول للشواية، سيبدأ الطهي تلقائياً!")
         SteakFarm.IsCooking = true
@@ -614,7 +636,7 @@ local function CookMeat()
         -- 5. انتظار النضج
         local cookTimeout = tick() + 30
         while tick() < cookTimeout do
-            local status = myGrill:GetAttribute("cooked_status") or ""
+            local status = MyAssignedGrill:GetAttribute("cooked_status") or ""
             if status == "Cooked" or status == "Perfect" then
                 print("✅ اكتمل الطهي بنجاح!")
                 break
@@ -625,12 +647,13 @@ local function CookMeat()
             task.wait(0.5)
         end
     else
-        print("❌ لم يتم العثور على شواية متاحة!")
+        print("❌ لم يتم العثور على شواية مخصصة!")
         return false
     end
 
     SteakFarm.IsCooking = false
     SteakFarm.HasMeat = false
+    MyAssignedGrill = nil
     
     return true
 end

@@ -1,106 +1,189 @@
--- ========================================
--- 🥩 STEAMHOUSE FARM - النسخة الكاملة النهائية
--- ========================================
-
--- ========================================
--- 1. إزالة الأبواب
--- ========================================
 for _, obj in pairs(workspace:GetDescendants()) do
     if obj:IsA("Model") and obj.Name == "DoorSystem" then
         obj:Destroy()
     end
 end
 
--- ========================================
--- 2. انتظار تحميل اللعبة
--- ========================================
 if not game:IsLoaded() then
-    repeat task.wait() until game:IsLoaded()
+    repeat
+        task.wait()
+    until game:IsLoaded()
 end
-
 if not (game.PlaceId == 104715542330896 or game.PlaceId == 97556409405464) then
     return
 end
 
--- ========================================
--- 3. حذف Transition و Character Creator
--- ========================================
-pcall(function()
-    local TransitionModule = require(RS.Modules.Game.UI.TransitionUI)
-    TransitionModule.transition = function() return end
-end)
+pcall(
+    function()
+        local TransitionModule = require(RS.Modules.Game.UI.TransitionUI)
 
-pcall(function()
-    local CharCreator = require(RS.Modules.Game.CharacterCreator.CharacterCreator)
-    CharCreator.start = function() while true do task.wait(1) end end
-end)
+        -- Hook transition() - บังคับรอ 10 วิ
+        local old_transition = TransitionModule.transition
+        TransitionModule.transition = function(p_in, p_wait, p_out, noLogo)
+            return result
+        end
+    end
+)
 
--- ========================================
--- 4. حماية المركبات
--- ========================================
+
+pcall(
+    function()
+        local CharCreator = require(RS.Modules.Game.CharacterCreator.CharacterCreator)
+
+        
+        if CharCreator.start then
+            local old_start = CharCreator.start
+            CharCreator.start = function(...)
+                
+                while true do
+                    task.wait(1)
+                end
+            end
+        end
+
+        
+        if CharCreator.load_page then
+            local old_load = CharCreator.load_page
+            CharCreator.load_page = function(...)
+                return old_load(...)
+            end
+        end
+
+        -- Hook initiate() - เริ่มต้น character creator
+        if CharCreator.initiate then
+            local old_initiate = CharCreator.initiate
+            CharCreator.initiate = function(...)
+                return old_initiate(...)
+            end
+        end
+    end
+)
+
+
 local VehiclesFolder = workspace:WaitForChild("Vehicles")
+
+
 local protectedVehicles = {}
 
 local function updateVehicleList()
     protectedVehicles = {}
+
     for _, model in ipairs(VehiclesFolder:GetDescendants()) do
         if model:IsA("VehicleSeat") and model.Name == "DriverSeat" then
             local vehicle = model:FindFirstAncestorOfClass("Model")
-            if vehicle then protectedVehicles[vehicle] = true end
+            if vehicle then
+                protectedVehicles[vehicle] = true
+            end
         end
     end
 end
 
 updateVehicleList()
 
+
+
 local function isProtectedSeat(seat)
     local vehicle = seat:FindFirstAncestorOfClass("Model")
     return vehicle and protectedVehicles[vehicle] == true
 end
 
+
+
+local function removeSeatIfNotInProtectedVehicle(seat)
+    if isProtectedSeat(seat) then
+        return 
+    end
+
+    seat:Destroy()
+end
+
+
+
 for _, seat in ipairs(workspace:GetDescendants()) do
-    if (seat:IsA("Seat") or seat:IsA("VehicleSeat")) and not isProtectedSeat(seat) then
-        seat:Destroy()
+    if seat:IsA("Seat") or seat:IsA("VehicleSeat") then
+        if not isProtectedSeat(seat) then
+            removeSeatIfNotInProtectedVehicle(seat)
+        end
     end
 end
 
-VehiclesFolder.DescendantAdded:Connect(function(obj)
-    if obj:IsA("VehicleSeat") and obj.Name == "DriverSeat" then updateVehicleList() end
-end)
 
-workspace.DescendantAdded:Connect(function(obj)
-    if (obj:IsA("Seat") or obj:IsA("VehicleSeat")) and not isProtectedSeat(obj) then
-        obj:Destroy()
+
+VehiclesFolder.DescendantAdded:Connect(function(obj)
+    if obj:IsA("VehicleSeat") and obj.Name == "DriverSeat" then
+        updateVehicleList()
     end
 end)
 
--- ========================================
--- 5. نظام الـ Net
--- ========================================
-local RS = game:GetService("ReplicatedStorage")
+
+
+workspace.DescendantAdded:Connect(function(obj)
+    if obj:IsA("Seat") or obj:IsA("VehicleSeat") then
+        if not isProtectedSeat(obj) then
+            removeSeatIfNotInProtectedVehicle(obj)
+        end
+    end
+end)
+
+game:GetService("ReplicatedStorage")
+
+
+if getgenv then
+    getgenv().identifyexecutor = nil
+end
+if getfenv then
+    local env = getfenv()
+    env.identifyexecutor = nil
+end
+
 local v_u_1 = {}
-local v2 = RS:WaitForChild("Remotes")
+local v2 = game.ReplicatedStorage:WaitForChild("Remotes")
 local v_u_3 = {
-    ["send"] = v2:WaitForChild("Send"),
-    ["get"] = v2:WaitForChild("Get")
+	["send"] = v2:WaitForChild("Send"),
+	["get"] = v2:WaitForChild("Get")
 }
-local v_u_4 = {["event"] = 0, ["func"] = 0}
+local v_u_4 = {
+	["event"] = 0,
+	["func"] = 0
+}
 local v_u_5 = {}
 local v_u_6 = false
 local v_u_7 = {}
 
 function v_u_1.on_connect(p8)
-    if v_u_6 then p8() else v_u_7[#v_u_7 + 1] = p8 end
+	if v_u_6 then
+		p8()
+	else
+		v_u_7[#v_u_7 + 1] = p8
+	end
 end
 
 function v_u_1.hook(p_u_9, p_u_10)
-    if not p_u_10 then error("Function nil for hook " .. p_u_9) end
-    if v_u_6 then
-        if v_u_5[p_u_9] then warn("Overwriting hook '" .. p_u_9 .. "'.") end
-        v_u_5[p_u_9] = p_u_10
-    else
-        v_u_1.on_connect(function() v_u_1.hook(p_u_9, p_u_10) end)
-    end
+	if not p_u_10 then
+		error("Function nil for hook " .. p_u_9)
+	end
+	if v_u_6 then
+		if v_u_5[p_u_9] then
+			warn("Overwriting hook \'" .. p_u_9 .. "\'.")
+		else
+			v_u_5[p_u_9] = p_u_10
+		end
+	else
+		v_u_1.on_connect(function()
+			v_u_1.hook(p_u_9, p_u_10)
+		end)
+		return
+	end
+end
+
+function v_u_1.is_connected(p11)
+	return p11:GetAttribute("IsConnected") and true or false
+end
+
+
+local function v_u_19(p12, p13, p14, p15, ...)
+	
+	return p12(p13, p14, p15, ...)
 end
 
 task.wait(0.1)
@@ -108,530 +191,556 @@ task.wait(0.1)
 local v_u_20 = v_u_3.send
 local v_u_21 = v_u_3.send.FireServer
 
+
 function v_u_1.send(p22, ...)
-    v_u_4.event = v_u_4.event + 1
-    v_u_21(v_u_20, v_u_4.event, p22, ...)
+	v_u_4.event = v_u_4.event + 1
+	
+	v_u_21(v_u_20, v_u_4.event, p22, ...)
 end
 
 local v_u_23 = v_u_3.get
 local v_u_24 = v_u_3.get.InvokeServer
 
+
 function v_u_1.get(p25, ...)
-    v_u_4.func = v_u_4.func + 1
-    return v_u_24(v_u_23, v_u_4.func, p25, ...)
+	v_u_4.func = v_u_4.func + 1
+	
+	return v_u_24(v_u_23, v_u_4.func, p25, ...)
 end
 
 task.wait(0.1)
 
 local function v_u_29()
-    v_u_3.send.OnClientEvent:connect(function(p26, ...)
-        if v_u_5[p26] then v_u_5[p26](...) else error("Invalid hook '" .. p26 .. "' fired!", 0) end
-    end)
-
-    function v_u_3.get.OnClientInvoke(p27, ...)
-        if v_u_5[p27] then return v_u_5[p27](...) end
-        error("Invalid hook '" .. p27 .. "' invoked!", 0)
-    end
-
-    pcall(function()
-        for v28 = 1, #v_u_7 do v_u_7[v28]() end
-    end)
+	v_u_3.send.OnClientEvent:connect(function(p26, ...)
+		if v_u_5[p26] then
+			v_u_5[p26](...)
+		else
+			error("Invalid hook \'" .. p26 .. "\' fired!", 0)
+		end
+	end)
+	
+	function v_u_3.get.OnClientInvoke(p27, ...)
+		if v_u_5[p27] then
+			return v_u_5[p27](...)
+		end
+		error("Invalid hook \'" .. p27 .. "\' invoked!", 0)
+	end
+	
+	if not pcall(function()
+		for v28 = 1, #v_u_7 do
+			v_u_7[v28]()
+		end
+	end) then
+		pcall(function()
+			print("On connect failed for client")
+			v_u_1.send("issue", "On connect failed for client")
+		end)
+	end
 end
+
+function v_u_1.initiate() end
 
 function v_u_1.loaded()
-    function v_u_3.get.OnClientInvoke(p30)
-        if p30 == "connect" then
-            v_u_6 = true
-            v_u_29()
-            return true
-        end
-    end
-    v_u_1.hook("ping", function() return true end)
+	function v_u_3.get.OnClientInvoke(p30)
+		if p30 == "connect" then
+			v_u_6 = true
+			v_u_29()
+			return true
+		end
+	end
+	
+	v_u_1.hook("ping", function()
+		return true
+	end)
 end
 
-print("✅ Net System Loaded")
+print("bypassed")
 
--- ========================================
--- 6. تعديل ATM
--- ========================================
-local function ModifyATMPrompts()
-    local ATMFolder = workspace:FindFirstChild("Map")
-    if not ATMFolder then return end
-    ATMFolder = ATMFolder:FindFirstChild("Props")
-    if not ATMFolder then return end
-    ATMFolder = ATMFolder:FindFirstChild("ATMs")
-    if not ATMFolder then return end
-    
-    for _, descendant in pairs(ATMFolder:GetDescendants()) do
-        if descendant:IsA("ProximityPrompt") then
-            descendant.MaxActivationDistance = 22
-        end
-    end
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HttpService = game:GetService("HttpService")
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local CurrentCamera = workspace.CurrentCamera
+local Debris = game:GetService("Debris")
+
+local Players, RunService, Camera, LocalPlayer, Mouse =
+    game:GetService("Players"),
+    game:GetService("RunService"),
+    workspace.CurrentCamera,
+    game.Players.LocalPlayer,
+    game.Players.LocalPlayer:GetMouse()
+
+local Net = require(ReplicatedStorage.Modules.Core.Net)
+local RagdollModule = require(ReplicatedStorage.Modules.Game.Ragdoll)
+local Vechine = require(ReplicatedStorage.Modules.Game.VehicleSystem.Vehicle)
+local CharModule = require(ReplicatedStorage.Modules.Core.Char)
+local SprintModule = require(ReplicatedStorage.Modules.Game.Sprint)
+local CrateController = require(ReplicatedStorage.Modules.Game.CrateSystem.Crate)
+
+local Settings = {}
+function c()
+    return Settings
 end
 
-ModifyATMPrompts()
+local Client = Players.LocalPlayer
+local Character = Client.Character or Client.CharacterAdded:Wait()
+local UserId = Client.UserId
+local PlayerGui = Client.PlayerGui
+local Humanoid = Character:WaitForChild("Humanoid")
+local RootPart = Character:WaitForChild("HumanoidRootPart")
+local Backpack = Client:WaitForChild("Backpack")
 
-workspace.Map.Props.ATMs.ChildAdded:Connect(function(child)
-    if child.Name == "ATM" then
-        task.wait(0.1)
-        for _, descendant in pairs(child:GetDescendants()) do
-            if descendant:IsA("ProximityPrompt") then
-                descendant.MaxActivationDistance = 22
-            end
-        end
+Client.CharacterAdded:Connect(
+    function(newCharacter)
+        Character = newCharacter
+        Humanoid = Character:WaitForChild("Humanoid")
+        RootPart = Character:WaitForChild("HumanoidRootPart")
+        Backpack = Client:WaitForChild("Backpack")
     end
-end)
+)
 
--- ========================================
--- 7. حظر remote crashed_car
--- ========================================
-local SendRemote = RS:WaitForChild("Remotes"):WaitForChild("Send")
-local oldFireServer = hookfunction(SendRemote.FireServer, function(self, ...)
+local Sf = {}
+
+local Sprint = require(game:GetService("ReplicatedStorage").Modules.Game.Sprint)
+
+local consume_stamina = Sprint.consume_stamina
+local SprintBar = debug.getupvalue(consume_stamina, 2).sprint_bar
+
+local RS = game:GetService("ReplicatedStorage")
+
+-- Block remote: crashed_car
+local SendRemote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Send")
+
+local oldFireServer
+oldFireServer = hookfunction(SendRemote.FireServer, function(self, ...)
     local args = {...}
-    if args[2] == "crashed_car" then return nil end
+
+    if args[2] == "crashed_car" then
+        return nil
+    end
+
     return oldFireServer(self, ...)
 end)
 
--- ========================================
--- 8. المتغيرات الأساسية
--- ========================================
+-- Services
 local ReplicatedStorage = game:GetService('ReplicatedStorage')
 local PathfindingService = game:GetService('PathfindingService')
 local Players = game:GetService('Players')
 local RunService = game:GetService('RunService')
-local HttpService = game:GetService("HttpService")
-local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
 
+-- Modules
 local Net = require(ReplicatedStorage.Modules.Core.Net)
-local JobUtil = require(ReplicatedStorage.Modules.Game.Jobs.JobUtil)
-local CharModule = require(ReplicatedStorage.Modules.Core.Char)
+local SprintModule = require(ReplicatedStorage.Modules.Game.Sprint)
 
--- ========================================
--- 9. مراجع اللاعب
--- ========================================
+-- Player References
 local Client = Players.LocalPlayer
 local Character = Client.Character or Client.CharacterAdded:Wait()
+local PlayerGui = Client.PlayerGui
 local Humanoid = Character:WaitForChild("Humanoid")
 local RootPart = Character:WaitForChild("HumanoidRootPart")
-local Backpack = Client:WaitForChild("Backpack")
 local UserId = Client.UserId
 
+local Backpack = Client:WaitForChild("Backpack")
+
 Client.CharacterAdded:Connect(function(newCharacter)
-    Character = newCharacter
-    Humanoid = Character:WaitForChild('Humanoid')
-    RootPart = Character:WaitForChild('HumanoidRootPart')
+	Character = newCharacter
+	Humanoid = Character:WaitForChild('Humanoid')
+	RootPart = Character:WaitForChild('HumanoidRootPart')
 end)
 
--- ========================================
--- 10. إعدادات الفارم
--- ========================================
+-- AutoFarm Configuration
 local Config = {
-    SteakAutoFarm = false,
-    StopWalking = false,
-    Running = false,
+	SteakAutoFarm = false,
+	StopWalking = false,
+	Running = false,
+	PathfindingModifierCreater = false,
+	Respawn = false
 }
 
-local function c() return Config end
+local function c()
+	return Config
+end
+
 
 local Sf = {}
 local func = {}
 
-local function JobNow()
-    return Client:GetAttribute('Job')
+local function distTo(v3)
+	return (v3 - RootPart.Position).Magnitude
 end
 
--- ========================================
--- 11. دوال التحكم
--- ========================================
+local function JobNow() return Client:GetAttribute('Job') end
+
+local function Getunpack(parent, callback)
+	for i, v in ipairs(parent:GetChildren()) do
+		pcall(callback, v, i)
+	end
+end
+
+local function FindItem(name)
+	local t = Backpack:FindFirstChild(name) or Character:FindFirstChild(name)
+	return {t ~= nil, t}
+end
+
+-- Setup Pathfinding Modifiers
+do
+	if not c().PathfindingModifierCreater then
+		for _, v in pairs(workspace:GetDescendants()) do
+			if v.Name == "DoorSystem" or v.Name == "BasementDoor" then
+				for _, x in ipairs(v:GetDescendants()) do
+					if x:IsA('BasePart') then
+						x.CanCollide = false
+						if not x:FindFirstChildOfClass("PathfindingModifier") then
+							local modifier = Instance.new("PathfindingModifier")
+							modifier.Label = "DoorArea"
+							modifier.PassThrough = true
+							modifier.Parent = x
+						end
+					end
+				end
+			end
+			if v.Name == "VehicleBlockers" then
+				v:Destroy()
+			end
+		end
+		
+		c().PathfindingModifierCreater = true
+	end
+end
+
+-- Helper Functions
+function Sf:dist(Objective)
+	return (Objective.Position - RootPart.Position).Magnitude or 0
+end
+
 function Sf:ForceStop()
-    if c()['Running'] then
-        c()["StopWalking"] = true
-        task.wait()
-        if c()["StopWalking"] then
-            task.wait()
-            c()["StopWalking"] = false
-        end
-    end
+	if c()['Running'] then
+		c()["StopWalking"] = true
+		task.wait()
+		if c()["StopWalking"] then
+			task.wait()
+			c()["StopWalking"] = false
+		end
+	end
+end
+
+function Sf:GetMoney()
+	local raw = game:GetService("Players").LocalPlayer.PlayerGui.TopRightHud.Holder.Frame.MoneyTextLabel.Text
+	local stripped = raw:match("%$([%d,]+)")
+	if not stripped then return 0 end
+	return tonumber((stripped:gsub(",", ""))) or 0
 end
 
 function Sf:Ac(...)
-    return Net.send(...)
-end
-
--- ========================================
--- نظام المشي (كودك الأصلي)
--- ========================================
-function Sf:Teleport(destination, value, t, speed)
-    c().StopWalking = false
-    c()['Running'] = true
-    local char = Client.Character or Client.CharacterAdded:Wait()
-    local RootPart = char:WaitForChild("HumanoidRootPart")
-    local Humanoid = char:WaitForChild("Humanoid")
-    
-    local path = PathfindingService:CreatePath({
-        AgentCanJump = true,
-        AgentJumpHeight = 2.5,
-        AgentHeight = 8,
-        AgentRadius = 2.5,
-        AgentMaxSlope = 90,
-        Costs = {BlockedNode = 50, DoorArea = 1}
-    })
-    
-    local success = pcall(function()
-        path:ComputeAsync(RootPart.Position, destination)
-    end)
-    
-    if not success then
-        c()['Running'] = false
-        return
-    end
-    
-    if path.Status == Enum.PathStatus.Success then
-        local waypoints = path:GetWaypoints()
-        
-        for _, wp in pairs(waypoints) do
-            local offsetY = (wp.Action == Enum.PathWaypointAction.Jump) and 10 or 4
-            local targetPos = wp.Position + Vector3.new(0, offsetY, 0)
-            local startPos = RootPart.Position
-            local dir = (targetPos - startPos).Unit
-            local dist = (targetPos - startPos).Magnitude
-            local movedDist = 0
-            local speed = speed or 34
-            local startTime = tick()
-            
-            while movedDist < dist and not c().StopWalking and value do
-                task.wait()
-                c()['Running'] = true
-                
-                if c().StopWalking or not value or Humanoid.Health <= 0 then
-                    c()['Running'] = false
-                    break
-                end
-                
-                local elapsedTime = tick() - startTime
-                movedDist = math.min(elapsedTime * speed, dist)
-                local newPos = startPos + dir * movedDist
-                
-                if Humanoid.Sit then
-                    Humanoid.Sit = false
-                end
-                
-                RootPart:PivotTo(CFrame.new(newPos))
-                Sf:Ac("set_sprinting_1", true)
-            end
-            
-            c()['Running'] = false
-            if not value then
-                break
-            end
-        end
-    end
-    c()['Running'] = false
+	return Net.send(...)
 end
 
 function ClearPathLines() end
 
+function Sf:Teleport(destination, value, t, speed)
+	c().StopWalking = false
+	c()['Running'] = true
+	local char = Client.Character or Client.CharacterAdded:Wait()
+	local RootPart = char:WaitForChild("HumanoidRootPart")
+	local Humanoid = char:WaitForChild("Humanoid")
+	
+	local path = PathfindingService:CreatePath({
+		AgentCanJump = true,
+		AgentJumpHeight = 2.5,
+		AgentHeight = 8,
+		AgentRadius = 2.5,
+		AgentMaxSlope = 90,
+		Costs = {BlockedNode = 50, DoorArea = 1}
+	})
+	
+	local success = pcall(function()
+		path:ComputeAsync(RootPart.Position, destination)
+	end)
+	
+	if not success then
+		c()['Running'] = false
+		return
+	end
+	
+	if path.Status == Enum.PathStatus.Success then
+		local waypoints = path:GetWaypoints()
+		
+		for _, wp in pairs(waypoints) do
+			local offsetY = (wp.Action == Enum.PathWaypointAction.Jump) and 10 or 4
+			local targetPos = wp.Position + Vector3.new(0, offsetY, 0)
+			local startPos = RootPart.Position
+			local dir = (targetPos - startPos).Unit
+			local dist = (targetPos - startPos).Magnitude
+			local movedDist = 0
+			local speed = speed or 34
+			local startTime = tick()
+			
+			while movedDist < dist and not c().StopWalking and value do
+				task.wait()
+				c()['Running'] = true
+				
+				if c().StopWalking or not value or Humanoid.Health <= 0 then
+					c()['Running'] = false
+					break
+				end
+				
+				local elapsedTime = tick() - startTime
+				movedDist = math.min(elapsedTime * speed, dist)
+				local newPos = startPos + dir * movedDist
+				
+				if Humanoid.Sit then
+					Humanoid.Sit = false
+				end
+				
+				RootPart:PivotTo(CFrame.new(newPos))
+				Sf:Ac("set_sprinting_1", true)
+			end
+			
+			c()['Running'] = false
+			if not value then
+				break
+			end
+		end
+	end
+	c()['Running'] = false
+end
+
+local SafeHeight = {
+    MinCharacter = 200,
+    Emergency = 50,
+    RespawnHeight = 260
+}
+
+task.spawn(function()
+    while task.wait(0) do
+        pcall(function()
+            if not Character or not RootPart then return end
+            if not c().SteakAutoFarm then return end
+            
+            local currentY = RootPart.Position.Y
+            
+            if currentY < SafeHeight.Emergency then
+                RootPart.Anchored = true
+                RootPart.CFrame = CFrame.new(
+                    RootPart.Position.X,
+                    SafeHeight.RespawnHeight,
+                    RootPart.Position.Z
+                )
+                task.wait(0)
+                RootPart.Anchored = false
+            
+            elseif currentY < SafeHeight.MinCharacter then
+                RootPart.CFrame = CFrame.new(
+                    RootPart.Position.X,
+                    SafeHeight.RespawnHeight,
+                    RootPart.Position.Z
+                )
+                
+                if RootPart.AssemblyLinearVelocity.Y < -50 then
+                    RootPart.AssemblyLinearVelocity = Vector3.new(
+                        RootPart.AssemblyLinearVelocity.X,
+                        0,
+                        RootPart.AssemblyLinearVelocity.Z
+                    )
+                end
+            end
+        end)
+    end
+end)
+
 -- ========================================
--- 12. نظام ستيك فارم
+-- 🥩 AUTO FARM STEAK
 -- ========================================
 
 local STEAK_POS = {
     Apply = Vector3.new(-262.798, 252.909, 343.73),
-    Fridge = Vector3.new(-279.046, 252.909, 335.229),
+    Meat = Vector3.new(-279.046, 252.909, 335.229)
 }
 
-local SteakFarm = {
-    Active = false,
-    IsCooking = false,
-    HasMeat = false,
-    CurrentGrill = nil,
-}
-
--- ========================================
--- دالة البحث عن ProximityPrompt "Steak"
--- ========================================
-local function FindStrictlySteakStation()
-    for _, v in pairs(workspace:GetDescendants()) do
-        if v:IsA("ProximityPrompt") then
-            local objText = string.lower(v.ObjectText or "")
-            local actText = string.lower(v.ActionText or "")
-            if string.find(objText, "steak") or string.find(actText, "steak") then
-                return v
-            end
+local function FindSteakPrompt()
+    -- البحث عن ProximityPrompt الخاص بالستيك
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("ProximityPrompt") and obj.Name == "Steak" then
+            return obj
+        end
+        -- بعض الأسماء البديلة
+        if obj:IsA("ProximityPrompt") and string.find(string.lower(obj.Name or ""), "steak") then
+            return obj
         end
     end
     return nil
 end
 
--- ========================================
--- دالة الحصول على GrillArea
--- ========================================
-local function GetGrillArea(grill)
-    if not grill then return nil end
-    return grill:FindFirstChild("GrillArea")
-end
-
--- ========================================
--- دالة CookMeat الكاملة
--- ========================================
-local function CookMeat()
-    local player = game.Players.LocalPlayer
-    local char = player.Character
-    local root = char:FindFirstChild("HumanoidRootPart")
-    
-    if not root then
-        print("❌ ما لقيت HumanoidRootPart")
-        return false
-    end
-    
-    -- 1. التوجه للثلاجة
-    print("🧊 التوجه للثلاجة...")
-    Sf:Teleport(STEAK_POS.Fridge, Config.SteakAutoFarm, nil, 34)
-    task.wait(0.5)
-    
-    -- 2. أخذ اللحم من الثلاجة
-    local targetPrompt = FindStrictlySteakStation()
-    
-    if targetPrompt then
-        print("✅ تم العثور على زر Steak!")
-        fireproximityprompt(targetPrompt)
-        
-        -- ننتظر ثانيتين عشان اللحم يظهر في يدك
-        print("⏳ ننتظر ثانيتين...")
-        task.wait(2)
-    else
-        print("❌ ما لقيت زر Steak!")
-        return false
-    end
-
-    -- 3. التأكد من وجود اللحم
-    local meatTool = nil
-    for _, tool in pairs(char:GetChildren()) do
-        if tool:IsA("Tool") and tool:GetAttribute("IsCookable") then
-            meatTool = tool
-            break
-        end
-    end
-    
-    if not meatTool then
-        print("❌ ما لقيت اللحم في يدك")
-        return false
-    end
-    
-    print("✅ تم استلام اللحم! (" .. meatTool.Name .. ")")
-    SteakFarm.HasMeat = true
-    
-    -- 4. طلب شواية من السيرفر (بعد الثانيتين)
-    print("📡 جاري طلب شواية من السيرفر...")
-    local grillId = Net.get("get_random_free_grill")
-    
-    if not grillId then
-        print("❌ السيرفر ما رد بشواية!")
-        return false
-    end
-    
-    print("✅ استلمت ID الشواية: " .. tostring(grillId))
-    
-    -- 5. البحث عن الشواية
-    local assignedGrill = nil
+local function FindGrillBeacon()
+    -- البحث عن Beacon الخاص بالشواية
     for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("Model") and obj.Name == "SteakGrill" and obj == grillId then
-            assignedGrill = obj
-            break
+        if obj:IsA("BasePart") and obj.Name == "GrillBeacon" then
+            return obj
+        end
+        if obj:IsA("Model") and obj.Name == "GrillBeacon" then
+            return obj
         end
     end
-    
-    if not assignedGrill then
-        print("❌ ما لقيت الشواية!")
-        return false
-    end
-    
-    print("✅ تم العثور على الشواية!")
-    SteakFarm.CurrentGrill = assignedGrill
-    
-    -- 6. التوجه للشواية
-    local grillArea = GetGrillArea(assignedGrill)
-    local targetPos
-    
-    if grillArea then
-        targetPos = grillArea.Position + Vector3.new(0, 2, 0)
-        print("📍 التوجه إلى GrillArea...")
-    else
-        targetPos = assignedGrill:GetPivot().Position + Vector3.new(0, 2, 0)
-        print("📍 التوجه إلى الشواية...")
-    end
-    
-    Sf:Teleport(targetPos, Config.SteakAutoFarm, nil, 34)
-    task.wait(0.5)
-    
-    -- 7. بدء الطهي
-    print("🔥 جاري إرسال أمر بدء الطهي...")
-    Net.send("start_grilling_2", assignedGrill)
-    print("✅ تم إرسال start_grilling_2")
-    
-    if grillArea then
-        local charRoot = char:FindFirstChild("HumanoidRootPart")
-        if charRoot then
-            firetouchinterest(charRoot, grillArea, 0)
-            task.wait(0.1)
-            firetouchinterest(charRoot, grillArea, 1)
-        end
-    end
-    
-    SteakFarm.IsCooking = true
-    
-    -- 8. انتظار الطهي
-    print("⏳ انتظار الطهي... (الحد الأقصى 35 ثانية)")
-    local cookTimeout = tick() + 35
-    local lastStatus = ""
-    
-    while tick() < cookTimeout do
-        local status = assignedGrill:GetAttribute("cooked_status") or ""
-        
-        local stillHasMeat = false
-        for _, tool in pairs(char:GetChildren()) do
-            if tool:IsA("Tool") and tool:GetAttribute("IsCookable") then
-                stillHasMeat = true
-                break
-            end
-        end
-        
-        if not stillHasMeat and status == "" then
-            print("✅ اللحم اختفى - اكتمل الطهي!")
-            break
-        end
-        
-        if status ~= lastStatus and status ~= "" then
-            print("📊 حالة الطهي: " .. status)
-            lastStatus = status
-        end
-        
-        if status == "Cooked" or status == "Perfect" then
-            print("✅ اكتمل الطهي بنجاح!")
-            break
-        elseif status == "Overcooked" then
-            print("❌ احترق اللحم!")
-            break
-        end
-        
-        task.wait(0.5)
-    end
-
-    -- 9. تنظيف
-    SteakFarm.IsCooking = false
-    SteakFarm.HasMeat = false
-    SteakFarm.CurrentGrill = nil
-    
-    print("✅ انتهت دورة الطهي!")
-    return true
+    return nil
 end
 
--- ========================================
--- 13. الدالة الرئيسية
--- ========================================
-local function StartSteakFarm()
-    print("🥩 بدء فارم Steak...")
+func['AutoFarmSteak'] = function()
+    print("🥩 بدء Auto Farm Steak...")
     
-    -- التحقق من التوظيف
-    if JobNow() ~= "steakhouse_cook" then
-        print("🚶 جاري التوجه للتوظيف...")
-        
-        Sf:Teleport(STEAK_POS.Apply, Config.SteakAutoFarm, nil, 34)
-        task.wait(0.5)
-        
-        local beacon = workspace:FindFirstChild("SteakHouseBeacon")
-        if not beacon then
-            pcall(function()
-                beacon = workspace.Map.Tiles.ShoppingTile.SteakHouse.Interior:FindFirstChild("SteakHouseBeacon")
-            end)
+    while task.wait(0) do
+        if not c().SteakAutoFarm then
+            Sf:ForceStop()
+            print("🥩 تم إيقاف Auto Farm Steak")
+            break
         end
         
-        if beacon then
-            print("📋 جاري إرسال طلب التوظيف...")
-            Net.send("apply_for_job", beacon)
-            task.wait(1.5)
-            print("✅ تم إرسال طلب التوظيف")
-        else
-            print("❌ ما لقيت Beacon التوظيف")
+        -- ========================================
+        -- الخطوة 1: التوجه لمكان التوظيف
+        -- ========================================
+        if JobNow() ~= "steakhouse_cook" then
+            print("🚶 جاري التوجه للتوظيف...")
+            
+            Sf:Teleport(STEAK_POS.Apply, Config.SteakAutoFarm)
+            task.wait(0.5)
+            
+            -- البحث عن Beacon التوظيف
+            local beacon = workspace:FindFirstChild("SteakHouseBeacon")
+            if not beacon then
+                local steakHouse = workspace:FindFirstChild("Map")
+                if steakHouse then
+                    steakHouse = steakHouse:FindFirstChild("Tiles")
+                    if steakHouse then
+                        steakHouse = steakHouse:FindFirstChild("ShoppingTile")
+                        if steakHouse then
+                            steakHouse = steakHouse:FindFirstChild("SteakHouse")
+                            if steakHouse then
+                                steakHouse = steakHouse:FindFirstChild("Interior")
+                                if steakHouse then
+                                    beacon = steakHouse:FindFirstChild("SteakHouseBeacon")
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+            
+            if beacon then
+                print("📋 جاري إرسال طلب التوظيف...")
+                Sf:Ac("apply_for_job", beacon)
+                task.wait(1.5)
+                print("✅ تم إرسال طلب التوظيف")
+            else
+                print("❌ ما لقيت Beacon التوظيف")
+                task.wait(1)
+            end
+            continue
         end
-    else
+        
         print("✅ أنت موظف في Steakhouse")
-    end
-    
-    -- انتظار قبول التوظيف
-    local waitCount = 0
-    while JobNow() ~= "steakhouse_cook" and waitCount < 10 do
-        task.wait(1)
-        waitCount = waitCount + 1
-        print("⏳ انتظار قبول التوظيف... " .. waitCount .. "/10")
-    end
-    
-    if JobNow() ~= "steakhouse_cook" then
-        print("❌ لم يتم قبول التوظيف!")
-        return
-    end
-    
-    print("✅ تم قبول التوظيف! بدء الفارم...")
-    
-    -- حلقة الفارم
-    local cycleCount = 0
-    
-    while Config.SteakAutoFarm and SteakFarm.Active do
-        cycleCount = cycleCount + 1
-        print("🔄 دورة رقم " .. cycleCount)
         
-        local success = CookMeat()
+        -- ========================================
+        -- الخطوة 2: التوجه لأخذ اللحم
+        -- ========================================
+        print("🚶 جاري التوجه لأخذ اللحم...")
+        Sf:Teleport(STEAK_POS.Meat, Config.SteakAutoFarm)
+        task.wait(0.3)
         
-        if not success then
-            print("⚠️ فشلت الدورة، إعادة المحاولة بعد 3 ثواني...")
-            task.wait(3)
-            SteakFarm.IsCooking = false
-            SteakFarm.HasMeat = false
-            SteakFarm.CurrentGrill = nil
+        -- البحث عن زر الستيك
+        local steakPrompt = FindSteakPrompt()
+        if steakPrompt then
+            print("✅ تم العثور على زر Steak!")
+            fireproximityprompt(steakPrompt)
+            task.wait(0.5)
+            print("✅ تم الضغط على زر Steak")
         else
-            print("✅ تم طهي اللحم بنجاح!")
+            print("❌ لم يتم العثور على زر Steak!")
+            task.wait(0.5)
+            continue
+        end
+        
+        -- ========================================
+        -- الخطوة 3: طلب شواية مجانية
+        -- ========================================
+        print("🔥 جاري طلب شواية مجانية...")
+        local success, result = pcall(function()
+            return Net.get("get_random_free_grill")
+        end)
+        
+        if success then
+            print("✅ تم الحصول على شواية: ", result)
+        else
+            print("❌ فشل في الحصول على شواية: ", result)
+            task.wait(1)
+            continue
+        end
+        
+        -- ========================================
+        -- الخطوة 4: التوجه للشواية
+        -- ========================================
+        local grillBeacon = FindGrillBeacon()
+        if grillBeacon then
+            local grillPos = grillBeacon:IsA("BasePart") and grillBeacon.Position or grillBeacon:GetPivot().Position
+            print("🔥 جاري التوجه للشواية...")
+            
+            -- استخدام JobUtil إذا كان موجوداً
+            local JobUtil = require(ReplicatedStorage.Modules.Game.JobUtil)
+            if JobUtil and JobUtil.place_beacon then
+                JobUtil.place_beacon(grillBeacon)
+                JobUtil.create_arrow(grillBeacon)
+            end
+            
+            -- التوجه لموقع الشواية
+            Sf:Teleport(grillPos, Config.SteakAutoFarm)
+            task.wait(0.5)
+            print("✅ وصلت للشواية")
+        else
+            print("❌ ما لقيت Beacon الشواية")
             task.wait(1)
         end
+        
+        task.wait(0.5)
     end
-    
-    print("🛑 توقف فارم Steak")
 end
 
-func['SteakFarm'] = StartSteakFarm
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
 
--- ========================================
--- 14. واجهة المستخدم (WindUI)
--- ========================================
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
 local Window = WindUI:CreateWindow({
-    Title = "🥩 Steak Farm V2",
+    Title = "Mercy Hub | Farm",
     Icon = "rbxassetid://118194721156015",
-    Author = "Steak Farm",
-    Folder = "steak_farm",
-    Size = UDim2.fromOffset(450, 350),
-    MinSize = Vector2.new(450, 350),
-    MaxSize = Vector2.new(450, 350),
+    Author = "[🔫]-Block Spin | discord.gg/z4x4TE6gGT",
+    Folder = "boss ter",
+
+    Size = UDim2.fromOffset(580, 460),
+    MinSize = Vector2.new(560, 350),
+    MaxSize = Vector2.new(850, 560),
     Transparent = true,
     Theme = "Dark",
-    Resizable = false,
-    SideBarWidth = 150,
+    Resizable = true,
+    SideBarWidth = 200,
     BackgroundImageTransparency = 0.42,
     HideSearchBar = true,
     ScrollBarEnabled = false,
     User = {
         Enabled = true,
         Anonymous = false,
-        Name = Client.Name,
-        Image = "rbxthumb://type=AvatarHeadShot&id=" .. Client.UserId .. "&w=150&h=150",
-        Callback = function() print("User Profile Clicked") end,
+        Name = LocalPlayer.Name,
+        Image = "rbxthumb://type=AvatarHeadShot&id=" .. LocalPlayer.UserId .. "&w=150&h=150",
+        Callback = function()
+            print("User Profile Clicked")
+        end,
     },
 })
 
-Window:EditOpenButton({Enabled = false})
+Window:EditOpenButton({
+    Enabled = false
+})
 
--- زر التبديل
+local CoreGui = game:GetService("CoreGui")
+local UserInputService = game:GetService("UserInputService")
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "WindUI_Toggle"
 ScreenGui.ResetOnSpawn = false
@@ -641,9 +750,11 @@ local ToggleBtn = Instance.new("ImageButton")
 ToggleBtn.Parent = ScreenGui
 ToggleBtn.Size = UDim2.fromOffset(40, 40)
 ToggleBtn.Position = UDim2.new(0.5, -20, 0, 10)
+
 ToggleBtn.BackgroundColor3 = Color3.fromRGB(30,30,30)
 ToggleBtn.BackgroundTransparency = 0
 ToggleBtn.Image = "rbxassetid://118194721156015"
+
 ToggleBtn.Active = true
 ToggleBtn.Draggable = true
 ToggleBtn.AutoButtonColor = false
@@ -653,9 +764,23 @@ Corner.CornerRadius = UDim.new(0, 10)
 Corner.Parent = ToggleBtn
 
 ToggleBtn.MouseButton1Click:Connect(function()
-    ToggleBtn:TweenSize(UDim2.fromOffset(44, 44), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.12, true, function()
-        ToggleBtn:TweenSize(UDim2.fromOffset(40, 40), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.12, true)
-    end)
+    ToggleBtn:TweenSize(
+        UDim2.fromOffset(44, 44),
+        Enum.EasingDirection.Out,
+        Enum.EasingStyle.Quad,
+        0.12,
+        true,
+        function()
+            ToggleBtn:TweenSize(
+                UDim2.fromOffset(40, 40),
+                Enum.EasingDirection.Out,
+                Enum.EasingStyle.Quad,
+                0.12,
+                true
+            )
+        end
+    )
+
     Window:Toggle()
 end)
 
@@ -666,62 +791,257 @@ UserInputService.InputBegan:Connect(function(input, gp)
     end
 end)
 
--- ========================================
--- 15. تبويبة Steak Farm
--- ========================================
-local FarmTab = Window:Tab({
-    Title = 'Steak Farm',
-    Icon = 'meat',
+local SteakTab = Window:Tab({
+    Title = '🥩 Steak Farm',
+    Icon = 'utensils',
 })
 
-FarmTab:Section({
-    Title = '🥩 Steak Farm:'
+SteakTab:Section({
+    Title = 'Auto Farm Steak:'
 })
 
-FarmTab:Toggle({
+SteakTab:Toggle({
     Title = "Auto Farm Steak",
     Icon = "check",
     Type = "Checkbox",
     Value = false,
     Callback = function(Value)
         Config.SteakAutoFarm = Value
+        
         if Value then
-            SteakFarm.Active = true
-            task.spawn(func['SteakFarm'])
+            task.spawn(func["AutoFarmSteak"])
         else
-            SteakFarm.Active = false
             Sf:ForceStop()
+            ClearPathLines()
         end
     end,
 })
 
-FarmTab:Section({
-    Title = '📊 Status:'
+local PlayerTab = Window:Tab({
+    Title = 'Player',
+    Icon = 'user',
 })
 
-local StatusLabel = FarmTab:Button({
-    Title = "📋 Status",
-    Desc = "Idle"
-})
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
--- تحديث الحالة
-task.spawn(function()
-    while task.wait(0.5) do
-        if Config.SteakAutoFarm then
-            local status = "🔄 Farming..."
-            if SteakFarm.IsCooking then
-                status = "🔥 Cooking..."
-            elseif SteakFarm.HasMeat then
-                status = "🍖 Has meat, going to grill..."
-            else
-                status = "🚶 Going to fridge..."
+
+local CharModule = require(game.ReplicatedStorage.Modules.Core.Char)
+
+
+local enabled = false
+local flickering = false
+local undergroundBaseCFrame = nil
+
+
+local DROP_DEPTH = -55
+local MOVE_RADIUS = 10
+local FLICKER_RATE = 0.1
+
+
+local function isDowned()
+    local hum = CharModule.get_hum()
+    
+    return hum and (hum:GetAttribute("HasBeenDowned") or hum:GetAttribute("IsDead") or hum.Health <= 0)
+end
+
+
+local function getHRP()
+    local char = CharModule.current_char.get()
+    if not char then return end
+    return char:FindFirstChild("HumanoidRootPart")
+end
+
+
+local function teleportUnderground()
+    local hrp = getHRP()
+    if not hrp then return end
+    local original = hrp.CFrame
+    undergroundBaseCFrame = original + Vector3.new(0, DROP_DEPTH, 0)
+    hrp.CFrame = undergroundBaseCFrame
+end
+
+
+local function flickerAndMove()
+    if flickering then return end
+    flickering = true
+    task.spawn(function()
+        while flickering and enabled and isDowned() do
+            local hrp = getHRP()
+            if hrp and undergroundBaseCFrame then
+                local angle = math.random() * math.pi * 2
+                local offset = Vector3.new(math.cos(angle), 0, math.sin(angle)) * MOVE_RADIUS
+                local randomPos = undergroundBaseCFrame.Position + offset
+                hrp.CFrame = CFrame.new(randomPos)
+                task.wait(0.05)
+                hrp.CFrame = undergroundBaseCFrame
             end
-            StatusLabel:SetDesc(status)
-        else
-            StatusLabel:SetDesc("⏸️ Stopped")
+            task.wait(FLICKER_RATE)
         end
+        flickering = false
+    end)
+end
+
+PlayerTab:Toggle({
+    Title = "Anti Kill",
+    Icon = "check",
+    Type = "Checkbox",
+    Value = false,
+    Callback = function(v)
+        enabled = v
+        if not v then
+            undergroundBaseCFrame = nil
+            flickering = false
+        end
+    end
+})
+
+RunService.Heartbeat:Connect(function()
+    if not enabled then return end
+    
+    if isDowned() then
+        local hrp = getHRP()
+        if hrp and not undergroundBaseCFrame then
+            teleportUnderground()
+        end
+        flickerAndMove()
+    else
+        if undergroundBaseCFrame then
+            local hrp = getHRP()
+            if hrp then
+                hrp.CFrame = undergroundBaseCFrame + Vector3.new(0, -DROP_DEPTH, 0)
+            end
+        end
+        undergroundBaseCFrame = nil
+        flickering = false
     end
 end)
 
-print("✅ تم تحميل كود Steak Farm V2 بنجاح!")
-print("🔥 اضغط T لفتح الواجهة")
+PlayerTab:Toggle({
+    Title = "Auto Respawn",
+    Icon = "check",
+    Type = "Checkbox",
+    Value = false,
+    Callback = function(v)
+        Config.Respawn = v
+        if v then
+            task.spawn(function()
+                while Config.Respawn do
+                    task.wait(0.05)
+                    local deathscreen = PlayerGui:FindFirstChild("DeathScreen")
+                    if deathscreen then
+                        local holder = deathscreen:FindFirstChild("DeathScreenHolder")
+                        if holder and holder.Visible then
+                            local btn = holder:FindFirstChild("Frame") and
+                                        holder.Frame:FindFirstChild("RespawnButtonFrame") and
+                                        holder.Frame.RespawnButtonFrame:FindFirstChild("RespawnButton") and
+                                        holder.Frame.RespawnButtonFrame.RespawnButton:FindFirstChild("TextLabel")
+                            if btn and btn.Text == "Respawn" then
+                                Net.send("death_screen_request_respawn")
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end
+})
+
+local ServerTab = Window:Tab({
+    Title = 'Server',
+    Icon = 'server',
+})
+
+local function GetJobID()
+    return game.JobId or "Unknown"
+end
+
+local ServerCodeLabel =
+    ServerTab:Code(
+    {
+        Title = "Current Server",
+        Code = " " .. GetJobID()
+    }
+)
+
+ServerTab:Divider()
+
+ServerTab:Section(
+    {
+        Title = "Server Utilities:"
+    }
+)
+
+
+local ServerCode = ""
+
+ServerTab:Input(
+    {
+        Title = "Enter Server Code",
+        Placeholder = "Paste server JobId here...",
+        Callback = function(Value)
+            ServerCode = Value
+        end
+    }
+)
+
+
+ServerTab:Button(
+    {
+        Title = "Join Code",
+        Icon = "log-in",
+        Callback = function()
+            if ServerCode == "" then
+                warn("ใส่codeดิน้อง")
+                return
+            end
+            local TeleportService = game:GetService("TeleportService")
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, ServerCode, game.Players.LocalPlayer)
+        end
+    }
+)
+
+ServerTab:Button(
+    {
+        Title = "Rejoin",
+        Icon = "refresh-ccw",
+        Callback = function()
+            local TeleportService = game:GetService("TeleportService")
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, game.Players.LocalPlayer)
+        end
+    }
+)
+
+ServerTab:Button(
+    {
+        Title = "Hop Server (Low Player)​",
+        Icon = "shuffle",
+        Callback = function()
+            local HttpService = game:GetService("HttpService")
+            local TeleportService = game:GetService("TeleportService")
+            local servers = {}
+            local req =
+                game:HttpGet(
+                string.format(
+                    "https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100",
+                    game.PlaceId
+                )
+            )
+            local data = HttpService:JSONDecode(req)
+            if data and data.data then
+                for _, v in pairs(data.data) do
+                    if v.playing < v.maxPlayers then
+                        table.insert(servers, v.id)
+                    end
+                end
+            end
+            if #servers > 0 then
+                TeleportService:TeleportToPlaceInstance(
+                    game.PlaceId,
+                    servers[math.random(1, #servers)],
+                    game.Players.LocalPlayer
+                )
+            end
+        end
+    }
+)

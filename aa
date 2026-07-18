@@ -1,54 +1,48 @@
 -- =================================================================
--- STEAK FARM - الكود الكامل المدمج (حماية + مسارات + توظيف + طهي)
+-- STEAK FARM: الكود المدمج بالكامل (حركة طبيعية + توظيف + طهي)
 -- =================================================================
 
-local RS = game:GetService("ReplicatedStorage")
-local PathfindingService = game:GetService("PathfindingService")
-local Net = require(RS.Modules.Core.Net)
-local CharModule = require(RS.Modules.Core.Char)
-
--- 1. نظام الحماية (Bypass)
-local SendRemote = RS:WaitForChild("Remotes"):WaitForChild("Send")
-local oldFireServer
-oldFireServer = hookfunction(SendRemote.FireServer, function(self, ...)
-    local args = {...}
-    if args[2] == "crashed_car" then return nil end
-    return oldFireServer(self, ...)
-end)
-
--- 2. إعدادات النظام
-local Config = { SteakAutoFarm = false, Running = false, StopWalking = false }
-local STEAK_POS = { Apply = Vector3.new(-262.798, 252.909, 343.73), Fridge = Vector3.new(-279.046, 252.909, 335.229) }
-
--- 3. دالة المسارات (Pathfinding)
-local function Sf_Teleport(destination)
+-- 1. نظام الحركة الذكي (Natural Movement)
+function Sf:Teleport(destination, speed)
     Config.StopWalking = false
-    local RootPart = game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    Config.Running = true
+    local Char = game.Players.LocalPlayer.Character
+    local RootPart = Char:WaitForChild("HumanoidRootPart")
+    local Humanoid = Char:WaitForChild("Humanoid")
+    
     local path = PathfindingService:CreatePath({AgentCanJump = true})
     path:ComputeAsync(RootPart.Position, destination)
     
     if path.Status == Enum.PathStatus.Success then
         for _, wp in pairs(path:GetWaypoints()) do
             if Config.StopWalking then break end
-            RootPart:PivotTo(CFrame.new(wp.Position + Vector3.new(0, 3, 0)))
-            task.wait(0.1)
+            
+            -- حركة فيزيائية طبيعية باستخدام Velocity
+            while (RootPart.Position - wp.Position).Magnitude > 3 and not Config.StopWalking do
+                local dir = (wp.Position - RootPart.Position).Unit
+                RootPart.Velocity = dir * (speed or 34)
+                Sf:Ac("set_sprinting_1", true)
+                if wp.Action == Enum.PathWaypointAction.Jump then Humanoid.Jump = true end
+                task.wait()
+            end
         end
     end
+    Config.Running = false
 end
 
--- 4. منطق التوظيف والطهي (Main Logic)
+-- 2. دورة العمل المتكاملة (Main Logic)
 local function PerformSteakFarm()
     local player = game.Players.LocalPlayer
     
-    -- أ. التحقق من التوظيف
+    -- أ. التوظيف التلقائي
     if player:GetAttribute('Job') ~= "steakhouse_cook" then
-        Sf_Teleport(STEAK_POS.Apply)
+        Sf:Teleport(STEAK_POS.Apply)
         local beacon = workspace:FindFirstChild("SteakHouseBeacon", true)
-        if beacon then Net.send("apply_for_job", beacon) task.wait(1) end
+        if beacon then Sf:Ac("apply_for_job", beacon) task.wait(1.5) end
     end
 
-    -- ب. الحصول على اللحم
-    Sf_Teleport(STEAK_POS.Fridge)
+    -- ب. أخذ اللحم
+    Sf:Teleport(STEAK_POS.Fridge)
     local target = nil
     for _, v in pairs(workspace:GetDescendants()) do
         if v:IsA("ProximityPrompt") and (v.Parent.Name == "Get Steak" or string.find(string.lower(v.ObjectText), "steak")) then
@@ -57,28 +51,30 @@ local function PerformSteakFarm()
     end
     if target then fireproximityprompt(target) task.wait(0.5) end
 
-    -- ج. الطهي والتحقق من الحالة
+    -- ج. الطهي (باستخدام الشواية المتاحة من السيرفر)
     if player.Character:FindFirstChild("Steak") then
-        local grill = nil
-        for _, obj in pairs(workspace:GetDescendants()) do
-            if obj.Name == "SteakGrill" and obj:GetAttribute("user_id_assigned") == player.UserId then
-                grill = obj break
-            end
-        end
-
-        if grill then
-            Sf_Teleport(grill:GetPivot().Position)
-            Net.send("start_grilling_2", grill)
+        local grillId = Net.get("get_random_free_grill")
+        local grill = ReplicatedStorage.Modules.Core.StatefulObject.grill_class.get(grillId)
+        
+        if grill and grill.instance then
+            Sf:Teleport(grill.instance:GetPivot().Position)
+            Sf:Ac("start_grilling_2", grill.instance)
             
-            -- انتظار ذكي (لا يغادر إلا عند اكتمال الطهي)
+            -- انتظار النضج قبل العودة
             repeat 
                 task.wait(0.5)
-                local status = grill:GetAttribute("cooked_status")
+                local status = grill.states.cooked_status.get()
             until status == "Cooked" or status == "Perfect" or status == "Overcooked"
         end
     end
 end
 
--- 5. تشغيل النظام عبر الـ UI (مختصر)
--- عند تفعيل Toggle:
--- while Config.SteakAutoFarm do PerformSteakFarm() task.wait(1) end
+-- 3. تفعيل الحلقة (Loop)
+task.spawn(function()
+    while true do
+        if Config.SteakAutoFarm then
+            pcall(PerformSteakFarm)
+        end
+        task.wait(1)
+    end
+end)

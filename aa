@@ -1,92 +1,84 @@
 -- =================================================================
--- نظام Steak Farm المتكامل مع الحماية (Full Protection)
+-- STEAK FARM - الكود الكامل المدمج (حماية + مسارات + توظيف + طهي)
 -- =================================================================
 
--- 1. نظام الحماية والحجب (Bypass & Security Layer)
-if not game:IsLoaded() then repeat task.wait() until game:IsLoaded() end
+local RS = game:GetService("ReplicatedStorage")
+local PathfindingService = game:GetService("PathfindingService")
+local Net = require(RS.Modules.Core.Net)
+local CharModule = require(RS.Modules.Core.Char)
 
--- حماية الـ Remotes وحجب الرسائل غير المرغوب فيها
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Net = require(ReplicatedStorage.Modules.Core.Net)
-local SendRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Send")
-
+-- 1. نظام الحماية (Bypass)
+local SendRemote = RS:WaitForChild("Remotes"):WaitForChild("Send")
 local oldFireServer
 oldFireServer = hookfunction(SendRemote.FireServer, function(self, ...)
     local args = {...}
-    if args[2] == "crashed_car" then return nil end -- حماية السيارة
+    if args[2] == "crashed_car" then return nil end
     return oldFireServer(self, ...)
 end)
 
--- 2. إعدادات الفارم (AutoFarm Config)
+-- 2. إعدادات النظام
 local Config = { SteakAutoFarm = false, Running = false, StopWalking = false }
-local SteakFarm = { Active = false, IsCooking = false, HasMeat = false }
+local STEAK_POS = { Apply = Vector3.new(-262.798, 252.909, 343.73), Fridge = Vector3.new(-279.046, 252.909, 335.229) }
 
--- 3. دالة التنقل المحمية (Teleport with Pathfinding)
-local function Sf_Teleport(destination, value)
+-- 3. دالة المسارات (Pathfinding)
+local function Sf_Teleport(destination)
     Config.StopWalking = false
-    Config.Running = true
-    local PathfindingService = game:GetService("PathfindingService")
     local RootPart = game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    
     local path = PathfindingService:CreatePath({AgentCanJump = true})
-    local success = pcall(function() path:ComputeAsync(RootPart.Position, destination) end)
+    path:ComputeAsync(RootPart.Position, destination)
     
-    if success and path.Status == Enum.PathStatus.Success then
+    if path.Status == Enum.PathStatus.Success then
         for _, wp in pairs(path:GetWaypoints()) do
-            if not value or Config.StopWalking then break end
-            RootPart:PivotTo(CFrame.new(wp.Position + Vector3.new(0, 4, 0)))
+            if Config.StopWalking then break end
+            RootPart:PivotTo(CFrame.new(wp.Position + Vector3.new(0, 3, 0)))
             task.wait(0.1)
         end
     end
-    Config.Running = false
 end
 
--- 4. نظام الطهي المحمي
-local function CookMeat()
-    local char = game.Players.LocalPlayer.Character
-    local STEAK_POS_FRIDGE = Vector3.new(-279.046, 252.909, 335.229)
+-- 4. منطق التوظيف والطهي (Main Logic)
+local function PerformSteakFarm()
+    local player = game.Players.LocalPlayer
     
-    -- التوجه للثلاجة
-    Sf_Teleport(STEAK_POS_FRIDGE, Config.SteakAutoFarm)
-    
-    -- البحث الآمن عن "Get Steak"[cite: 1]
-    local targetPrompt = nil
+    -- أ. التحقق من التوظيف
+    if player:GetAttribute('Job') ~= "steakhouse_cook" then
+        Sf_Teleport(STEAK_POS.Apply)
+        local beacon = workspace:FindFirstChild("SteakHouseBeacon", true)
+        if beacon then Net.send("apply_for_job", beacon) task.wait(1) end
+    end
+
+    -- ب. الحصول على اللحم
+    Sf_Teleport(STEAK_POS.Fridge)
+    local target = nil
     for _, v in pairs(workspace:GetDescendants()) do
         if v:IsA("ProximityPrompt") and (v.Parent.Name == "Get Steak" or string.find(string.lower(v.ObjectText), "steak")) then
-            targetPrompt = v
-            break
+            target = v break
         end
     end
-    
-    if targetPrompt then
-        fireproximityprompt(targetPrompt)
-        task.wait(1)
-    end
+    if target then fireproximityprompt(target) task.wait(0.5) end
 
-    -- التأكد من وجود اللحم وبدء الطهي[cite: 1]
-    if char:FindFirstChild("Steak") then
-        local grill = nil -- إضافة منطق البحث عن الشواية المخصصة هنا
-        -- [إدراج منطق GetAssignedGrillFromGame() هنا]
-        
-        -- إرسال أمر الطهي عبر النظام المحمي[cite: 1]
-        Net.send("start_grilling_2", grill) 
-        
-        -- انتظار النضج مع حماية من التعليق[cite: 1]
-        task.wait(15) 
+    -- ج. الطهي والتحقق من الحالة
+    if player.Character:FindFirstChild("Steak") then
+        local grill = nil
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj.Name == "SteakGrill" and obj:GetAttribute("user_id_assigned") == player.UserId then
+                grill = obj break
+            end
+        end
+
+        if grill then
+            Sf_Teleport(grill:GetPivot().Position)
+            Net.send("start_grilling_2", grill)
+            
+            -- انتظار ذكي (لا يغادر إلا عند اكتمال الطهي)
+            repeat 
+                task.wait(0.5)
+                local status = grill:GetAttribute("cooked_status")
+            until status == "Cooked" or status == "Perfect" or status == "Overcooked"
+        end
     end
-    return true
 end
 
--- 5. واجهة المستخدم (WindUI) - تم تفعيلها مع النظام[cite: 1]
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
-local Window = WindUI:CreateWindow({ Title = "Steak Farm Pro [Secure]", Size = UDim2.fromOffset(400, 300) })
-
-local FarmTab = Window:Tab({ Title = 'Steak Farm', Icon = 'meat' })
-FarmTab:Toggle({
-    Title = "Auto Farm Steak",
-    Value = false,
-    Callback = function(Value)
-        Config.SteakAutoFarm = Value
-        if Value then task.spawn(function() while Config.SteakAutoFarm do CookMeat() task.wait(1) end end) end
-    end,
-})
+-- 5. تشغيل النظام عبر الـ UI (مختصر)
+-- عند تفعيل Toggle:
+-- while Config.SteakAutoFarm do PerformSteakFarm() task.wait(1) end

@@ -505,13 +505,12 @@ local function GetRandomFreeGrill()
     return nil
 end
 
--- البحث عن Attachment في الشواية
-local function FindGrillAttachment(grill)
+-- دالة البحث عن GrillArea في الشواية
+local function GetGrillAreaPosition(grill)
     if not grill then return nil end
-    for _, obj in pairs(grill:GetDescendants()) do
-        if obj:IsA("Attachment") then
-            return obj
-        end
+    local grillArea = grill:FindFirstChild("GrillArea")
+    if grillArea then
+        return grillArea:GetPivot().Position
     end
     return nil
 end
@@ -582,16 +581,16 @@ local function CookMeat()
     if assignedGrill then
         print("✅ تم تخصيص شواية!")
         
-        -- البحث عن Attachment في الشواية
-        local attachment = FindGrillAttachment(assignedGrill)
+        -- البحث عن GrillArea في الشواية
+        local grillAreaPos = GetGrillAreaPosition(assignedGrill)
         
-        if attachment then
-            -- التوجه لموقع Attachment
-            local targetPos = attachment.WorldPosition + Vector3.new(0, 2, 0)
-            print("📍 التوجه إلى Attachment...")
+        if grillAreaPos then
+            -- التوجه لموقع GrillArea
+            local targetPos = grillAreaPos + Vector3.new(0, 2, 0)
+            print("📍 التوجه إلى GrillArea...")
             TeleportToSteak(targetPos)
         else
-            -- إذا ما لقى Attachment يروح للشواية نفسها
+            -- إذا ما لقى GrillArea يروح للشواية نفسها
             local grillPos = assignedGrill:GetPivot().Position + Vector3.new(0, 2, 0)
             print("📍 التوجه إلى الشواية...")
             TeleportToSteak(grillPos)

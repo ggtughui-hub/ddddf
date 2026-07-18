@@ -1,5 +1,5 @@
 -- ========================================
--- 🥩 الكود الأصلي + نظام الطهي المتكامل
+-- 🥩 الكود الأصلي + نظام الطهي (بدون Beacon/Arrow من العميل)
 -- ========================================
 
 for _, obj in pairs(workspace:GetDescendants()) do
@@ -245,7 +245,6 @@ local Vechine = require(ReplicatedStorage.Modules.Game.VehicleSystem.Vehicle)
 local CharModule = require(ReplicatedStorage.Modules.Core.Char)
 local SprintModule = require(ReplicatedStorage.Modules.Game.Sprint)
 local CrateController = require(ReplicatedStorage.Modules.Game.CrateSystem.Crate)
-local JobUtil = require(ReplicatedStorage.Modules.Game.Jobs.JobUtil)
 
 local Settings = {}
 function c()
@@ -341,7 +340,6 @@ local RunService = game:GetService('RunService')
 -- Modules
 local Net = require(ReplicatedStorage.Modules.Core.Net)
 local SprintModule = require(ReplicatedStorage.Modules.Game.Sprint)
-local JobUtil = require(ReplicatedStorage.Modules.Game.Jobs.JobUtil)
 
 -- Chip Prices
 local ChipPrice = {
@@ -485,7 +483,7 @@ end
 function ClearPathLines() end
 
 -- ========================================
--- 🥩 نظام ستيك فارم (زي اللعبة الأصلية)
+-- 🥩 نظام ستيك فارم (بدون Beacon/Arrow)
 -- ========================================
 
 local STEAK_POS = {
@@ -498,8 +496,6 @@ local SteakFarm = {
     IsCooking = false,
     HasMeat = false,
     CurrentGrill = nil,
-    CurrentBeacon = nil,
-    CurrentArrow = nil,
 }
 
 -- ========================================
@@ -519,7 +515,7 @@ local function FindStrictlySteakStation()
 end
 
 -- ========================================
--- دالة الحصول على GrillArea من الشواية
+-- دالة الحصول على GrillArea
 -- ========================================
 local function GetGrillArea(grill)
     if not grill then return nil end
@@ -527,7 +523,7 @@ local function GetGrillArea(grill)
 end
 
 -- ========================================
--- دالة CookMeat الكاملة (زي اللعبة الأصلية)
+-- دالة CookMeat الكاملة
 -- ========================================
 local function CookMeat()
     local player = game.Players.LocalPlayer
@@ -554,7 +550,8 @@ local function CookMeat()
     if targetPrompt then
         print("✅ تم العثور على زر Steak!")
         fireproximityprompt(targetPrompt)
-        task.wait(1.5)
+        print("⏳ انتظار ثانيتين عشان السيرفر يخصص الشواية...")
+        task.wait(2)  -- ← انتظار ثانيتين
     else
         print("❌ لم يتم العثور على زر Steak!")
         return false
@@ -613,44 +610,11 @@ local function CookMeat()
     SteakFarm.CurrentGrill = assignedGrill
     
     -- ========================================
-    -- 6. إنشاء Beacon و Arrow
+    -- 6. التوجه للشواية
     -- ========================================
-    print("📍 جاري إنشاء Beacon و Arrow...")
-    
-    -- حذف الـ Beacon و Arrow القديمين
-    if SteakFarm.CurrentBeacon then
-        SteakFarm.CurrentBeacon:Destroy()
-        SteakFarm.CurrentBeacon = nil
-    end
-    if SteakFarm.CurrentArrow then
-        SteakFarm.CurrentArrow:Destroy()
-        SteakFarm.CurrentArrow = nil
-    end
-    
-    -- الحصول على GrillArea
     local grillArea = GetGrillArea(assignedGrill)
-    
-    if grillArea then
-        -- إنشاء Beacon عند GrillArea
-        local beaconPos = grillArea.Position - Vector3.new(0, grillArea.Size.Y / 2, 0)
-        SteakFarm.CurrentBeacon = JobUtil.place_beacon(beaconPos, true)
-        print("✅ تم إنشاء Beacon")
-        
-        -- إنشاء Arrow يشير للـ Beacon
-        task.wait(0.2)
-        if SteakFarm.CurrentBeacon then
-            local beaconPart = SteakFarm.CurrentBeacon:FindFirstChildWhichIsA("BasePart")
-            if beaconPart then
-                SteakFarm.CurrentArrow = JobUtil.create_arrow(CharModule.get_hrp(), beaconPart)
-                print("✅ تم إنشاء Arrow")
-            end
-        end
-    end
-    
-    -- ========================================
-    -- 7. التوجه للشواية
-    -- ========================================
     local targetPos
+    
     if grillArea then
         targetPos = grillArea.Position + Vector3.new(0, 2, 0)
         print("📍 التوجه إلى GrillArea...")
@@ -663,7 +627,7 @@ local function CookMeat()
     task.wait(0.5)
     
     -- ========================================
-    -- 8. إرسال أمر بدء الطهي (Net.send)
+    -- 7. إرسال أمر بدء الطهي (Net.send)
     -- ========================================
     print("🔥 جاري إرسال أمر بدء الطهي...")
     
@@ -683,7 +647,7 @@ local function CookMeat()
     SteakFarm.IsCooking = true
     
     -- ========================================
-    -- 9. انتظار الطهي
+    -- 8. انتظار الطهي
     -- ========================================
     print("⏳ انتظار الطهي... (الحد الأقصى 35 ثانية)")
     local cookTimeout = tick() + 35
@@ -722,17 +686,8 @@ local function CookMeat()
     end
 
     -- ========================================
-    -- 10. تنظيف
+    -- 9. تنظيف
     -- ========================================
-    if SteakFarm.CurrentBeacon then
-        SteakFarm.CurrentBeacon:Destroy()
-        SteakFarm.CurrentBeacon = nil
-    end
-    if SteakFarm.CurrentArrow then
-        SteakFarm.CurrentArrow:Destroy()
-        SteakFarm.CurrentArrow = nil
-    end
-    
     SteakFarm.IsCooking = false
     SteakFarm.HasMeat = false
     SteakFarm.CurrentGrill = nil
@@ -806,16 +761,6 @@ local function StartSteakFarm()
         if not success then
             print("⚠️ فشلت الدورة، إعادة المحاولة بعد 3 ثواني...")
             task.wait(3)
-            
-            -- تنظيف
-            if SteakFarm.CurrentBeacon then
-                SteakFarm.CurrentBeacon:Destroy()
-                SteakFarm.CurrentBeacon = nil
-            end
-            if SteakFarm.CurrentArrow then
-                SteakFarm.CurrentArrow:Destroy()
-                SteakFarm.CurrentArrow = nil
-            end
             SteakFarm.IsCooking = false
             SteakFarm.HasMeat = false
             SteakFarm.CurrentGrill = nil

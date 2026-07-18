@@ -245,6 +245,7 @@ local Vechine = require(ReplicatedStorage.Modules.Game.VehicleSystem.Vehicle)
 local CharModule = require(ReplicatedStorage.Modules.Core.Char)
 local SprintModule = require(ReplicatedStorage.Modules.Game.Sprint)
 local CrateController = require(ReplicatedStorage.Modules.Game.CrateSystem.Crate)
+local JobUtil = require(ReplicatedStorage.Modules.Game.Jobs.JobUtil)
 
 local Settings = {}
 function c()
@@ -493,27 +494,32 @@ local SteakFarm = {
 -- الأحداثيات
 local STEAK_POS = {
     Apply = Vector3.new(-262.798, 252.909, 343.73),
-    Fridge = Vector3.new(-279.046, 252.909, 335.229),
 }
 
--- متغير لتخزين الشواية المخصصة
-local MyAssignedGrill = nil
+-- متغيرات لتخزين الـ Beacon والـ Arrow
+local SteakBeacon = nil
+local SteakArrow = nil
 
 -- ========================================
--- دالة محسنة للحصول على الشواية المخصصة (مع طباعة للاختبار)
+-- دالة البحث عن الثلاجة (Fridge)
 -- ========================================
-local function GetAssignedGrillFromGame()
-    local localPlayer = game.Players.LocalPlayer
+local function FindFridge()
     for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("Model") and obj.Name == "SteakGrill" then
-            local userId = obj:GetAttribute("user_id_assigned")
-            -- طباعة للاختبار
-            if userId then
-                print("🔍 تم العثور على شواية مع userId: " .. userId)
-            end
-            
-            if userId and userId == localPlayer.UserId then
-                print("✅ تم العثور على الشواية المخصصة لك!")
+        if obj:IsA("Model") and obj.Name == "SteakFridge" then
+            return obj
+        end
+    end
+    return nil
+end
+
+-- ========================================
+-- دالة البحث عن ProximityPrompt في الثلاجة
+-- ========================================
+local function FindFridgePrompt()
+    local fridge = FindFridge()
+    if fridge then
+        for _, obj in pairs(fridge:GetDescendants()) do
+            if obj:IsA("ProximityPrompt") then
                 return obj
             end
         end
@@ -521,38 +527,65 @@ local function GetAssignedGrillFromGame()
     return nil
 end
 
--- دالة البحث عن GrillArea في الشواية
-local function GetGrillAreaPosition(grill)
-    if not grill then return nil end
-    local grillArea = grill:FindFirstChild("GrillArea")
-    if grillArea then
-        return grillArea:GetPivot().Position
-    end
-    return nil
-end
-
--- دالة البحث الصارم عن الـ Steak
-local function FindStrictlySteakStation()
-    for _, v in pairs(workspace:GetDescendants()) do
-        if v:IsA("ProximityPrompt") then
-            local objText = string.lower(v.ObjectText or "")
-            local actText = string.lower(v.ActionText or "")
-            if string.find(objText, "steak") or string.find(actText, "steak") then
-                return v
-            end
-        end
-    end
-    return nil
-end
-
+-- ========================================
 -- دالة التليفورت للـ Steak
+-- ========================================
 local function TeleportToSteak(pos)
     Sf:Teleport(pos, Config.SteakAutoFarm)
     task.wait(0.5)
 end
 
 -- ========================================
--- دالة CookMeat - الطهي (معدلة مع تأخير ذكي)
+-- دالة الحصول على الشواية من السيرفر
+-- ========================================
+local function GetRandomFreeGrill()
+    local assignedGrill = Net.get("get_random_free_grill")
+    if assignedGrill then
+        print("✅ تم الحصول على شواية من السيرفر!")
+        return assignedGrill
+    end
+    print("❌ لم يتم الحصول على شواية من السيرفر!")
+    return nil
+end
+
+-- ========================================
+-- دالة إنشاء الـ Beacon و Arrow
+-- ========================================
+local function CreateGrillBeaconAndArrow(grill)
+    if not grill then return nil end
+    
+    -- البحث عن GrillArea
+    local grillArea = grill:FindFirstChild("GrillArea")
+    if not grillArea then
+        print("❌ ما لقيت GrillArea في الشواية")
+        return nil
+    end
+    
+    -- حذف الـ Beacon القديم إذا كان موجود
+    if SteakBeacon then
+        SteakBeacon:Destroy()
+        SteakBeacon = nil
+    end
+    
+    -- حذف الـ Arrow القديم إذا كان موجود
+    if SteakArrow then
+        SteakArrow:Destroy()
+        SteakArrow = nil
+    end
+    
+    -- إنشاء Beacon جديد
+    SteakBeacon = JobUtil.place_beacon(grillArea.Position - Vector3.new(0, grillArea.Size.Y / 2, 0), true)
+    print("📍 تم إنشاء Beacon للشواية")
+    
+    -- إنشاء Arrow جديد
+    SteakArrow = JobUtil.create_arrow(CharModule.get_hrp(), SteakBeacon:FindFirstChildWhichIsA("BasePart"))
+    print("📍 تم إنشاء Arrow للتوجيه")
+    
+    return SteakBeacon
+end
+
+-- ========================================
+-- دالة CookMeat - الطهي
 -- ========================================
 local function CookMeat()
     local player = game.Players.LocalPlayer
@@ -566,95 +599,105 @@ local function CookMeat()
     
     -- 1. التوجه للثلاجة
     print("🧊 التوجه للثلاجة...")
-    TeleportToSteak(STEAK_POS.Fridge)
-    task.wait(0.5)
-    
-    -- 2. البحث عن ProximityPrompt "Steak"
-    local targetPrompt = FindStrictlySteakStation()
-    
-    if targetPrompt then
-        print("✅ تم العثور على زر Steak!")
-        fireproximityprompt(targetPrompt)
+    local fridge = FindFridge()
+    if fridge then
+        local fridgePos = fridge:GetPivot().Position + Vector3.new(0, 2, 0)
+        TeleportToSteak(fridgePos)
         task.wait(0.5)
     else
-        print("❌ لم يتم العثور على زر Steak!")
+        print("❌ ما لقيت الثلاجة")
+        return false
+    end
+    
+    -- 2. البحث عن ProximityPrompt في الثلاجة
+    local fridgePrompt = FindFridgePrompt()
+    if fridgePrompt then
+        print("✅ تم العثور على ProximityPrompt في الثلاجة!")
+        fireproximityprompt(fridgePrompt)
+        task.wait(1)
+    else
+        print("❌ ما لقيت ProximityPrompt في الثلاجة")
+        return false
+    end
+    
+    -- 3. مراقبة اللحم في اليد باستخدام CharModule
+    print("⏳ انتظار ظهور اللحم في اليد...")
+    local meatCheckTimeout = tick() + 5
+    local hasMeat = false
+    
+    while tick() < meatCheckTimeout do
+        local tool = CharModule.held_tool.get()
+        if tool and tool:GetAttribute("IsCookable") then
+            hasMeat = true
+            print("✅ تم استلام اللحم! انتظار السيرفر لتعيين الشواية...")
+            break
+        end
+        task.wait(0.2)
+    end
+    
+    if not hasMeat then
+        print("❌ لم يتم استلام اللحم!")
+        return false
+    end
+    
+    SteakFarm.HasMeat = true
+    
+    -- 4. طلب شواية من السيرفر
+    print("📡 جاري طلب شواية من السيرفر...")
+    local assignedGrill = GetRandomFreeGrill()
+    
+    if assignedGrill then
+        print("✅ تم تخصيص الشواية!")
+        SteakFarm.CurrentGrill = assignedGrill
+        
+        -- إنشاء Beacon و Arrow
+        CreateGrillBeaconAndArrow(assignedGrill)
+        
+        -- البحث عن GrillArea
+        local grillArea = assignedGrill:FindFirstChild("GrillArea")
+        if grillArea then
+            local targetPos = grillArea:GetPivot().Position + Vector3.new(0, 2, 0)
+            print("📍 التوجه إلى GrillArea...")
+            TeleportToSteak(targetPos)
+        else
+            local grillPos = assignedGrill:GetPivot().Position + Vector3.new(0, 2, 0)
+            print("📍 التوجه إلى الشواية...")
+            TeleportToSteak(grillPos)
+        end
+        
+        print("🔥 تم الوصول للشواية، سيبدأ الطهي تلقائياً!")
+        SteakFarm.IsCooking = true
+        
+        -- 5. انتظار النضج
+        local cookTimeout = tick() + 30
+        while tick() < cookTimeout do
+            local status = assignedGrill:GetAttribute("cooked_status") or ""
+            if status == "Cooked" or status == "Perfect" then
+                print("✅ اكتمل الطهي بنجاح!")
+                break
+            elseif status == "Overcooked" then
+                print("❌ احترق اللحم!")
+                break
+            end
+            task.wait(0.5)
+        end
+    else
+        print("❌ لم يتم الحصول على شواية من السيرفر!")
         return false
     end
 
-    -- 3. التأكد من وجود اللحم
-    if char:FindFirstChild("Steak") then
-        print("✅ تم استلام اللحم! انتظار السيرفر لتعيين الشواية...")
-        
-        -- ✅ انتظار السيرفر لتحديث الـ Attribute (2 ثانية)
-        task.wait(2)
-        
-        SteakFarm.HasMeat = true
-        
-        -- ========================================
-        -- 4. الحصول على الشواية المخصصة
-        -- ========================================
-        print("📍 جاري البحث عن الشواية المخصصة...")
-        
-        -- محاولة الحصول على الشواية المخصصة
-        MyAssignedGrill = GetAssignedGrillFromGame()
-        
-        -- إذا ما لقى، نحاول ننتظر شوية
-        if not MyAssignedGrill then
-            print("⏳ انتظار تخصيص الشواية...")
-            local waitTimeout = tick() + 5
-            while not MyAssignedGrill and tick() < waitTimeout do
-                task.wait(0.5)
-                MyAssignedGrill = GetAssignedGrillFromGame()
-            end
-        end
-        
-        if MyAssignedGrill then
-            print("✅ تم العثور على الشواية المخصصة!")
-            SteakFarm.CurrentGrill = MyAssignedGrill
-            
-            -- البحث عن GrillArea في الشواية المخصصة
-            local grillAreaPos = GetGrillAreaPosition(MyAssignedGrill)
-            
-            if grillAreaPos then
-                -- التوجه لموقع GrillArea
-                local targetPos = grillAreaPos + Vector3.new(0, 2, 0)
-                print("📍 التوجه إلى GrillArea...")
-                TeleportToSteak(targetPos)
-            else
-                -- إذا ما لقى GrillArea يروح للشواية نفسها
-                local grillPos = MyAssignedGrill:GetPivot().Position + Vector3.new(0, 2, 0)
-                print("📍 التوجه إلى الشواية...")
-                TeleportToSteak(grillPos)
-            end
-            
-            print("🔥 تم الوصول للشواية، سيبدأ الطهي تلقائياً!")
-            SteakFarm.IsCooking = true
-            
-            -- 5. انتظار النضج
-            local cookTimeout = tick() + 30
-            while tick() < cookTimeout do
-                local status = MyAssignedGrill:GetAttribute("cooked_status") or ""
-                if status == "Cooked" or status == "Perfect" then
-                    print("✅ اكتمل الطهي بنجاح!")
-                    break
-                elseif status == "Overcooked" then
-                    print("❌ احترق اللحم!")
-                    break
-                end
-                task.wait(0.5)
-            end
-        else
-            print("❌ لم يتم العثور على شواية مخصصة!")
-            return false
-        end
-    else
-        print("❌ لم يتم التقاط اللحم!")
-        return false
+    -- تنظيف الـ Beacon و Arrow
+    if SteakBeacon then
+        SteakBeacon:Destroy()
+        SteakBeacon = nil
+    end
+    if SteakArrow then
+        SteakArrow:Destroy()
+        SteakArrow = nil
     end
 
     SteakFarm.IsCooking = false
     SteakFarm.HasMeat = false
-    MyAssignedGrill = nil
     
     return true
 end

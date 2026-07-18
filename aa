@@ -477,14 +477,11 @@ end
 function ClearPathLines() end
 
 -- ========================================
--- 🥩 STEAK FARM - نظام كامل (بدون توظيف وأخذ لحم وبدون Cooking)
+-- 🥩 STEAK FARM - فقط التعرف على Beacon و Arrow والمشي إليها
 -- ========================================
 
 local SteakFarm = {
     Active = false,
-    IsCooking = false,
-    HasMeat = false,
-    CurrentGrill = nil,
 }
 
 -- متغيرات لتخزين الـ Beacon والـ Arrow
@@ -492,43 +489,38 @@ local SteakBeacon = nil
 local SteakArrow = nil
 
 -- ========================================
--- دالة إنشاء الـ Beacon و Arrow
+-- دالة البحث عن الـ Beacon
 -- ========================================
-local function CreateGrillBeaconAndArrow(grill)
-    if not grill then return nil end
-    
-    -- البحث عن GrillArea
-    local grillArea = grill:FindFirstChild("GrillArea")
-    if not grillArea then
-        print("❌ ما لقيت GrillArea في الشواية")
-        return nil
+local function FindBeacon()
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and obj.Name == "Beacon" then
+            local beaconPart = obj:FindFirstChildWhichIsA("BasePart")
+            if beaconPart then
+                return obj
+            end
+        end
     end
-    
-    -- حذف الـ Beacon القديم إذا كان موجود
-    if SteakBeacon then
-        SteakBeacon:Destroy()
-        SteakBeacon = nil
-    end
-    
-    -- حذف الـ Arrow القديم إذا كان موجود
-    if SteakArrow then
-        SteakArrow:Destroy()
-        SteakArrow = nil
-    end
-    
-    -- إنشاء Beacon جديد
-    SteakBeacon = JobUtil.place_beacon(grillArea.Position - Vector3.new(0, grillArea.Size.Y / 2, 0), true)
-    print("📍 تم إنشاء Beacon للشواية")
-    
-    -- إنشاء Arrow جديد
-    SteakArrow = JobUtil.create_arrow(CharModule.get_hrp(), SteakBeacon:FindFirstChildWhichIsA("BasePart"))
-    print("📍 تم إنشاء Arrow للتوجيه")
-    
-    return SteakBeacon
+    return nil
 end
 
 -- ========================================
--- دالة التوجه للـ Beacon (المشي التلقائي)
+-- دالة البحث عن الـ Arrow
+-- ========================================
+local function FindArrow()
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and string.find(string.lower(obj.Name or ""), "arrow") then
+            return obj
+        end
+        -- بعض الأحيان الـ Arrow يكون Model
+        if obj:IsA("Model") and string.find(string.lower(obj.Name or ""), "arrow") then
+            return obj
+        end
+    end
+    return nil
+end
+
+-- ========================================
+-- دالة التوجه إلى الـ Beacon
 -- ========================================
 local function WalkToBeacon()
     if not SteakBeacon then
@@ -555,61 +547,34 @@ local function WalkToBeacon()
         print("✅ تم الوصول إلى الـ Beacon")
         return true
     else
-        print("⚠️ لم يتم الوصول تماماً، لكن سنكمل")
-        return true
+        print("⚠️ لم يتم الوصول تماماً")
+        return false
     end
-end
-
--- ========================================
--- دالة مراقبة ظهور الـ Beacon والـ Arrow
--- ========================================
-local function WaitForBeaconAndArrow()
-    print("⏳ انتظار ظهور الـ Beacon و Arrow...")
-    
-    local timeout = tick() + 10
-    while tick() < timeout do
-        -- البحث عن الـ Beacon في الـ Workspace
-        for _, obj in pairs(workspace:GetDescendants()) do
-            if obj:IsA("Model") and obj.Name == "Beacon" then
-                local beaconPart = obj:FindFirstChildWhichIsA("BasePart")
-                if beaconPart then
-                    SteakBeacon = obj
-                    print("✅ تم العثور على الـ Beacon!")
-                    
-                    -- البحث عن الـ Arrow (عادة يكون Part)
-                    for _, arrow in pairs(workspace:GetDescendants()) do
-                        if arrow:IsA("BasePart") and string.find(string.lower(arrow.Name), "arrow") then
-                            SteakArrow = arrow
-                            print("✅ تم العثور على الـ Arrow!")
-                            return true
-                        end
-                    end
-                    return true
-                end
-            end
-        end
-        task.wait(0.3)
-    end
-    
-    print("❌ لم يتم العثور على الـ Beacon أو Arrow خلال 10 ثواني")
-    return false
 end
 
 -- ========================================
 -- الدالة الرئيسية - StartSteakFarm
 -- ========================================
 local function StartSteakFarm()
-    print("🥩 بدء فارم Steak...")
+    print("🥩 بدء البحث عن الـ Beacon و Arrow...")
     
-    -- ========================================
-    -- حلقة الفارم
-    -- ========================================
     while Config.SteakAutoFarm and SteakFarm.Active do
-        -- 1. انتظار ظهور الـ Beacon و Arrow
-        local found = WaitForBeaconAndArrow()
+        -- 1. البحث عن الـ Beacon
+        SteakBeacon = FindBeacon()
         
-        if found then
-            -- 2. التوجه إلى الـ Beacon
+        if SteakBeacon then
+            print("✅ تم العثور على الـ Beacon!")
+            
+            -- 2. البحث عن الـ Arrow
+            SteakArrow = FindArrow()
+            
+            if SteakArrow then
+                print("✅ تم العثور على الـ Arrow!")
+            else
+                print("⚠️ لم يتم العثور على الـ Arrow")
+            end
+            
+            -- 3. التوجه إلى الـ Beacon
             local walked = WalkToBeacon()
             
             if walked then
@@ -617,18 +582,19 @@ local function StartSteakFarm()
             else
                 print("❌ فشل التوجه إلى الـ Beacon")
             end
+            
+            -- 4. تنظيف المتغيرات
+            SteakBeacon = nil
+            SteakArrow = nil
+            
+            task.wait(2)
         else
-            print("⏳ لم يظهر الـ Beacon، انتظار...")
+            print("⏳ لم يتم العثور على الـ Beacon، انتظار...")
+            task.wait(1)
         end
-        
-        -- 3. تنظيف المتغيرات
-        SteakBeacon = nil
-        SteakArrow = nil
-        
-        task.wait(2)
     end
     
-    print("🛑 توقف فارم Steak")
+    print("🛑 توقف البحث عن Beacon")
 end
 
 func['SteakFarm'] = StartSteakFarm
@@ -730,7 +696,7 @@ FarmTab:Section({
 })
 
 FarmTab:Toggle({
-    Title = "Auto Farm Steak",
+    Title = "Auto Walk to Beacon",
     Icon = "check",
     Type = "Checkbox",
     Value = false,
@@ -758,7 +724,7 @@ local StatusLabel = FarmTab:Button({
 task.spawn(function()
     while task.wait(0.5) do
         if Config.SteakAutoFarm then
-            local status = "🔄 Waiting for Beacon..."
+            local status = "🔍 Searching for Beacon..."
             if SteakBeacon then
                 status = "📍 Beacon found, walking..."
             end

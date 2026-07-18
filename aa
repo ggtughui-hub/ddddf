@@ -493,14 +493,19 @@ local SteakFarm = {
 -- الأحداثيات
 local STEAK_POS = {
     Apply = Vector3.new(-262.798, 252.909, 343.73),
-    Fridge = Vector3.new(-279.046, 252.909, 335.229),
 }
 
--- جلب الثلاجة
-local function GetFridge()
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("Model") and obj.Name == "SteakFridge" then
-            return obj
+-- جلب الثلاجة عبر البحث عن ProximityPrompt "Get Steak"
+local function FindSteakFridge()
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("ProximityPrompt") then
+            local objText = string.lower(v.ObjectText or "")
+            local actText = string.lower(v.ActionText or "")
+            
+            -- مطابقة النص الظاهر
+            if string.find(objText, "get steak") or string.find(actText, "get steak") then
+                return v -- يرجع الـ Prompt نفسه
+            end
         end
     end
     return nil
@@ -560,81 +565,43 @@ local function TeleportToSteak(pos)
 end
 
 -- ========================================
--- دالة GrabMeatFromFridge - أخذ اللحم من الثلاجة
+-- دالة CookMeat - الطهي (باستخدام نظام FindSteakFridge)
 -- ========================================
-local function GrabMeatFromFridge()
-    print("🧊 التوجه للثلاجة لأخذ اللحم...")
-    
-    -- التوجه للثلاجة
-    TeleportToSteak(STEAK_POS.Fridge)
-    task.wait(0.5)
-    
-    -- البحث عن الـ ProximityPrompt الذي يظهر فيه نص "Get Steak"
-    local targetPrompt = nil
-    for _, v in pairs(workspace:GetDescendants()) do
-        if v:IsA("ProximityPrompt") and (v.ObjectText == "Get Steak" or v.ActionText == "Get Steak" or v.ObjectText == "Interact") then
-            targetPrompt = v
-            break
-        end
-    end
-    
-    if targetPrompt then
-        -- الانتقال لموقع الجزء الذي يحتوي على الـ Prompt
-        local fridgePart = targetPrompt.Parent
-        if fridgePart and fridgePart:IsA("BasePart") then
-            local fridgePos = fridgePart.Position + Vector3.new(0, 2, 0)
-            TeleportToSteak(fridgePos)
-            task.wait(0.5)
-            
-            -- تفعيل الـ Prompt (اضغط E تلقائياً)
-            fireproximityprompt(targetPrompt)
-            task.wait(0.5)
-        end
-    else
-        print("❌ لم يتم العثور على زر Get Steak في الخريطة!")
+local function CookMeat()
+    -- 1. البحث عن الثلاجة
+    local fridgePrompt = FindSteakFridge()
+    if not fridgePrompt then
+        print("❌ لم يتم العثور على ثلاجة الـ Get Steak!")
         return false
     end
-
-    -- التأكد من أن اللاعب حمل اللحم في اليد أو الحقيبة
+    
+    -- 2. الانتقال للثلاجة والضغط عليها
+    local fridgePart = fridgePrompt.Parent
+    if fridgePart and fridgePart:IsA("BasePart") then
+        local fridgePos = fridgePart.Position + Vector3.new(0, 3, 0)
+        TeleportToSteak(fridgePos)
+        task.wait(0.5)
+        fireproximityprompt(fridgePrompt)
+        task.wait(0.5)
+    end
+    
+    -- 3. التأكد من حمل اللحم
     local player = game.Players.LocalPlayer
-    local character = player.Character or player.CharacterAdded:Wait()
-    
-    -- البحث عن الأداة التي تعطيها الثلاجة
-    local tool = character:FindFirstChildWhichIsA("Tool") or player.Backpack:FindFirstChildWhichIsA("Tool")
-    
+    local tool = player.Character:FindFirstChildWhichIsA("Tool") or player.Backpack:FindFirstChildWhichIsA("Tool")
     if tool then
-        -- إذا كانت الأداة في الحقيبة، نضعها في اليد فوراً ليتعرف عليها كود الماب
         if tool.Parent == player.Backpack then
             player.Character.Humanoid:EquipTool(tool)
         end
-        print("✅ تم حمل اللحم بنجاح وتفعيله في اليد!")
+        print("✅ تم استلام اللحم بنجاح!")
         SteakFarm.HasMeat = true
-        return true
-    end
-    
-    print("❌ تم ضغط الزر ولكن لم يظهر اللحم في الحقيبة")
-    return false
-end
-
--- ========================================
--- دالة CookMeat - الطهي
--- ========================================
-local function CookMeat()
-    -- خطوة أولى: التأكد من حمل اللحم، وإذا لم يكن معك، اذهب واجلبه
-    local player = game.Players.LocalPlayer
-    local currentTool = player.Character and player.Character:FindFirstChildWhichIsA("Tool")
-    
-    if not (currentTool and currentTool:GetAttribute("IsCookable")) then
-        local grabbed = GrabMeatFromFridge()
-        if not grabbed then
-            task.wait(1)
-            return false
-        end
+    else
+        print("❌ لم يتم استلام اللحم")
+        return false
     end
 
     print("🔥 جاري البحث عن شواية...")
     
-    -- 1. البحث عن شواية فارغة
+    -- 4. البحث عن شواية فارغة
     local grills = GetAvailableGrills()
     if #grills == 0 then
         print("⏳ ما فيه شواية فارغة")
@@ -645,11 +612,11 @@ local function CookMeat()
     local grill = grills[1]
     SteakFarm.CurrentGrill = grill.Model
     
-    -- 2. التوجه للشواية
+    -- 5. التوجه للشواية
     local grillPos = grill.Position + Vector3.new(0, 2, 0)
     TeleportToSteak(grillPos)
     
-    -- 3. التأكد من الوصول ولمس منطقة الشواية
+    -- 6. التأكد من الوصول ولمس منطقة الشواية
     local timeout = tick() + 5
     while distTo(grillPos) > 3 and tick() < timeout do
         Sf:Teleport(grillPos, Config.SteakAutoFarm)
@@ -658,7 +625,7 @@ local function CookMeat()
     
     print("✅ وصلت للشواية")
     
-    -- 4. محاكاة اللمس (Touch) لمنطقة الشواية
+    -- 7. محاكاة اللمس (Touch) لمنطقة الشواية
     local grillArea = grill.Model:FindFirstChild("GrillArea") or grill.Model:FindFirstChildWhichIsA("BasePart", true)
     if grillArea and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         firetouchinterest(grillArea, player.Character.HumanoidRootPart, 0)
@@ -669,7 +636,7 @@ local function CookMeat()
     print("🍖 جاري وضع اللحم...")
     SteakFarm.IsCooking = true
     
-    -- 5. انتظار النضج
+    -- 8. انتظار النضج
     local cookTimeout = tick() + 40
     while tick() < cookTimeout do
         task.wait(0.5)

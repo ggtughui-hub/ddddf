@@ -477,7 +477,7 @@ end
 function ClearPathLines() end
 
 -- ========================================
--- 🥩 STEAK FARM - نظام كامل (بدون توظيف وأخذ لحم)
+-- 🥩 STEAK FARM - نظام كامل (بدون توظيف وأخذ لحم وبدون Cooking)
 -- ========================================
 
 local SteakFarm = {
@@ -490,19 +490,6 @@ local SteakFarm = {
 -- متغيرات لتخزين الـ Beacon والـ Arrow
 local SteakBeacon = nil
 local SteakArrow = nil
-
--- ========================================
--- دالة الحصول على الشواية من السيرفر
--- ========================================
-local function GetRandomFreeGrill()
-    local assignedGrill = Net.get("get_random_free_grill")
-    if assignedGrill then
-        print("✅ تم الحصول على شواية من السيرفر!")
-        return assignedGrill
-    end
-    print("❌ لم يتم الحصول على شواية من السيرفر!")
-    return nil
-end
 
 -- ========================================
 -- دالة إنشاء الـ Beacon و Arrow
@@ -574,82 +561,38 @@ local function WalkToBeacon()
 end
 
 -- ========================================
--- دالة CookMeat - الطهي (بدون توظيف وأخذ لحم)
+-- دالة مراقبة ظهور الـ Beacon والـ Arrow
 -- ========================================
-local function CookMeat()
-    local player = game.Players.LocalPlayer
-    local char = player.Character
-    local root = char:FindFirstChild("HumanoidRootPart")
+local function WaitForBeaconAndArrow()
+    print("⏳ انتظار ظهور الـ Beacon و Arrow...")
     
-    if not root then
-        print("❌ ما لقيت HumanoidRootPart")
-        return false
-    end
-    
-    -- 1. التحقق من وجود اللحم في اليد
-    local tool = CharModule.held_tool.get()
-    if not tool or not tool:GetAttribute("IsCookable") then
-        print("❌ لا يوجد لحم في اليد! انتظر حتى تمسك اللحم.")
-        return false
-    end
-    
-    print("✅ تم التأكد من وجود اللحم في اليد!")
-    SteakFarm.HasMeat = true
-    
-    -- 2. طلب شواية من السيرفر
-    print("📡 جاري طلب شواية من السيرفر...")
-    local assignedGrill = GetRandomFreeGrill()
-    
-    if assignedGrill then
-        print("✅ تم تخصيص الشواية!")
-        SteakFarm.CurrentGrill = assignedGrill
-        
-        -- إنشاء Beacon و Arrow
-        CreateGrillBeaconAndArrow(assignedGrill)
-        
-        -- 3. التوجه إلى الـ Beacon (المشي التلقائي)
-        local walked = WalkToBeacon()
-        
-        if walked then
-            print("🔥 تم الوصول للشواية، سيبدأ الطهي تلقائياً!")
-            SteakFarm.IsCooking = true
-            
-            -- 4. انتظار النضج
-            local cookTimeout = tick() + 30
-            while tick() < cookTimeout do
-                local status = assignedGrill:GetAttribute("cooked_status") or ""
-                if status == "Cooked" or status == "Perfect" then
-                    print("✅ اكتمل الطهي بنجاح!")
-                    break
-                elseif status == "Overcooked" then
-                    print("❌ احترق اللحم!")
-                    break
+    local timeout = tick() + 10
+    while tick() < timeout do
+        -- البحث عن الـ Beacon في الـ Workspace
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:IsA("Model") and obj.Name == "Beacon" then
+                local beaconPart = obj:FindFirstChildWhichIsA("BasePart")
+                if beaconPart then
+                    SteakBeacon = obj
+                    print("✅ تم العثور على الـ Beacon!")
+                    
+                    -- البحث عن الـ Arrow (عادة يكون Part)
+                    for _, arrow in pairs(workspace:GetDescendants()) do
+                        if arrow:IsA("BasePart") and string.find(string.lower(arrow.Name), "arrow") then
+                            SteakArrow = arrow
+                            print("✅ تم العثور على الـ Arrow!")
+                            return true
+                        end
+                    end
+                    return true
                 end
-                task.wait(0.5)
             end
-        else
-            print("❌ فشل التوجه إلى الـ Beacon")
-            return false
         end
-    else
-        print("❌ لم يتم الحصول على شواية من السيرفر!")
-        return false
+        task.wait(0.3)
     end
-
-    -- تنظيف الـ Beacon و Arrow
-    if SteakBeacon then
-        SteakBeacon:Destroy()
-        SteakBeacon = nil
-    end
-    if SteakArrow then
-        SteakArrow:Destroy()
-        SteakArrow = nil
-    end
-
-    SteakFarm.IsCooking = false
-    SteakFarm.HasMeat = false
     
-    return true
+    print("❌ لم يتم العثور على الـ Beacon أو Arrow خلال 10 ثواني")
+    return false
 end
 
 -- ========================================
@@ -659,17 +602,30 @@ local function StartSteakFarm()
     print("🥩 بدء فارم Steak...")
     
     -- ========================================
-    -- حلقة الفارم (بدون توظيف وأخذ لحم)
+    -- حلقة الفارم
     -- ========================================
     while Config.SteakAutoFarm and SteakFarm.Active do
-        local success = CookMeat()
-        if not success then
-            task.wait(1)
-            continue
+        -- 1. انتظار ظهور الـ Beacon و Arrow
+        local found = WaitForBeaconAndArrow()
+        
+        if found then
+            -- 2. التوجه إلى الـ Beacon
+            local walked = WalkToBeacon()
+            
+            if walked then
+                print("✅ تم الوصول إلى الـ Beacon بنجاح!")
+            else
+                print("❌ فشل التوجه إلى الـ Beacon")
+            end
+        else
+            print("⏳ لم يظهر الـ Beacon، انتظار...")
         end
         
-        print("✅ تم طهي اللحم!")
-        task.wait(0.5)
+        -- 3. تنظيف المتغيرات
+        SteakBeacon = nil
+        SteakArrow = nil
+        
+        task.wait(2)
     end
     
     print("🛑 توقف فارم Steak")
@@ -802,13 +758,9 @@ local StatusLabel = FarmTab:Button({
 task.spawn(function()
     while task.wait(0.5) do
         if Config.SteakAutoFarm then
-            local status = "🔄 Farming..."
-            if SteakFarm.IsCooking then
-                status = "🔥 Cooking..."
-            elseif SteakFarm.HasMeat then
-                status = "🍖 Has meat, going to grill..."
-            else
-                status = "⏳ Waiting for meat..."
+            local status = "🔄 Waiting for Beacon..."
+            if SteakBeacon then
+                status = "📍 Beacon found, walking..."
             end
             StatusLabel:SetDesc(status)
         else

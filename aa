@@ -1,5 +1,5 @@
 -- ============================================================================
--- 🔥 MERCY HUB - STEAK MODE + DOOR REMOVER & PROTECTION ACTIVE
+-- 🔥 MERCY HUB - CORRECT PATHFINDING + STEAK ONLY MODE
 -- ============================================================================
 
 if not game:IsLoaded() then
@@ -8,32 +8,28 @@ end
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
+local PathfindingService = game:GetService("PathfindingService")
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local Backpack = LocalPlayer:WaitForChild("Backpack")
 local Humanoid = Character:WaitForChild("Humanoid")
 local RootPart = Character:WaitForChild("HumanoidRootPart")
 
--- تحديث المتغيرات عند الموت أو إعادة الرسبون (نظام حماية من التجميد)
+-- إعادة تعريف المتغيرات عند الرسبون للحماية من التعليق
 LocalPlayer.CharacterAdded:Connect(function(newCharacter)
     Character = newCharacter
     Humanoid = Character:WaitForChild("Humanoid")
     RootPart = Character:WaitForChild("HumanoidRootPart")
     Backpack = LocalPlayer:WaitForChild("Backpack")
-    
-    -- إعادة تشغيل الحماية فور الرسبون
-    Character:WaitForChild("Animate")
-    task.wait(0.5)
 end)
 
 local NetSend = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Send")
 local NetGet = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Get")
 
--- الإعدادات النشطة (تم الإبقاء على الحماية والأبواب فقط)
+-- الإعدادات (تضم الحماية والأبواب ونظام المشي الذكي ووظيفة الستيك فقط)
 local Config = {
     AutoSteak = false,
-    TeleportSpeed = 38,
+    TeleportSpeed = 34,
     AntiKill = true,
     RemoveDoors = true
 }
@@ -44,7 +40,6 @@ local Config = {
 local function ClearObstacles()
     if not Config.RemoveDoors then return end
     pcall(function()
-        -- حذف أبواب المطعم والمنطقة المحيطة لتسهيل التل بورت بدون تعليق
         if workspace:FindFirstChild("Map") then
             for _, obj in pairs(workspace.Map:GetDescendants()) do
                 if obj:IsA("BasePart") and (obj.Name:lower():find("door") or obj.Name:lower():find("gate") or obj.Name == "Glass") then
@@ -53,7 +48,6 @@ local function ClearObstacles()
                 end
             end
         end
-        -- استهداف أبواب السوبرماركت والمطاعم المحددة برمجياً
         for _, obj in pairs(workspace:GetDescendants()) do
             if obj:IsA("Model") and (obj.Name:find("Door") or obj.Name:find("Gate")) then
                 for _, part in pairs(obj:GetDescendants()) do
@@ -67,27 +61,22 @@ local function ClearObstacles()
     end)
 end
 
--- تشغيل حذف الأبواب بشكل دوري لضمان عدم عودتها عند تجدد السيرفر
 task.spawn(function()
     while task.wait(5) do
-        if Config.RemoveDoors then
-            ClearObstacles()
-        end
+        if Config.RemoveDoors then ClearObstacles() end
     end
 end)
 
 -- ==========================================
--- 🛡️ 2️⃣ أنظمة الحماية (Anti-Kill & Anti-Stuck)
+-- 🛡️ 2️⃣ أنظمة الحماية (Anti-Kill / Anti-Stuck)
 -- ==========================================
 task.spawn(function()
     while task.wait(1) do
         if Config.AntiKill and Humanoid and Humanoid.Health > 0 then
             pcall(function()
-                -- منع الموت المفاجئ الناتجة عن الجليتشات أو الصدمات أثناء التل بورت
                 if Humanoid.FloorMaterial == Enum.CellMaterial.Empty and RootPart.Velocity.Y < -100 then
                     RootPart.Velocity = Vector3.new(RootPart.Velocity.X, 0, RootPart.Velocity.Z)
                 end
-                -- حماية ضد السقوط تحت الخريطة (Void Protection)
                 if RootPart.Position.Y < 200 then
                     RootPart.CFrame = CFrame.new(RootPart.Position.X, 255, RootPart.Position.Z)
                 end
@@ -97,37 +86,50 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 🚀 3️⃣ دالة التل بورت الذكي والسريع
+-- 🚶‍♂️ 3️⃣ نظام المشي الذكي وحساب النقاط (Pathfinding Teleport)
 -- ==========================================
 local function TeleportTo(destination)
     if not Config.AutoSteak or Humanoid.Health <= 0 then return end
     
-    local distance = (destination - RootPart.Position).Magnitude
-    if distance < 5 then 
-        RootPart.CFrame = CFrame.new(destination)
-        return 
-    end
-
-    -- استخدام نظام التل بورت المباشر السلس المدعوم بحذف الاصطدام مؤقتاً لحمايتك
-    pcall(function()
-        for _, part in pairs(Character:GetDescendants()) do
-            if part:IsA("BasePart") then part.CanCollide = false end
-        end
-        
-        local tweenInfo = TweenInfo.new(distance / Config.TeleportSpeed, Enum.EasingStyle.Linear)
-        local tween = TweenService:Create(RootPart, tweenInfo, {CFrame = CFrame.new(destination)})
-        tween:Play()
-        
-        -- التوقف الفوري إذا تم إطفاء الفارم أثناء التنقل
-        while tween.PlaybackState == Enum.PlaybackState.Playing do
-            task.wait()
-            if not Config.AutoSteak or Humanoid.Health <= 0 then
-                tween:Cancel()
-                break
+    -- إنشاء المسار الذكي لتفادي التعليق في الجدران
+    local path = PathfindingService:CreatePath({
+        AgentCanJump = true,
+        AgentHeight = 8,
+        AgentRadius = 2.5,
+        Costs = { DoorArea = 1 }
+    })
+    
+    pcall(function() path:ComputeAsync(RootPart.Position, destination) end)
+    
+    if path.Status == Enum.PathStatus.Success then
+        local waypoints = path:GetWaypoints()
+        for _, wp in pairs(waypoints) do
+            if not Config.AutoSteak or Humanoid.Health <= 0 then break end
+            
+            local targetPos = wp.Position + Vector3.new(0, 4, 0) -- رفع النقطة قليلاً لمنع الارتطام بالأرض
+            local startPos = RootPart.Position
+            local dir = (targetPos - startPos).Unit
+            local dist = (targetPos - startPos).Magnitude
+            local movedDist = 0
+            local startTime = tick()
+            
+            -- إلغاء اصطدام الشخصية أثناء التنقل الداخلي لحمايتها
+            pcall(function()
+                for _, part in pairs(Character:GetDescendants()) do
+                    if part:IsA("BasePart") then part.CanCollide = false end
+                end
+            end)
+            
+            while movedDist < dist and Config.AutoSteak do
+                task.wait()
+                if Humanoid.Sit then Humanoid.Sit = false end
+                local elapsedTime = tick() - startTime
+                movedDist = math.min(elapsedTime * Config.TeleportSpeed, dist)
+                RootPart:PivotTo(CFrame.new(startPos + dir * movedDist))
+                NetSend:FireServer(0, "set_sprinting_1", true)
             end
-            NetSend:FireServer(0, "set_sprinting_1", true) -- تسريع الاستجابة بالسيرفر
         end
-    end)
+    end
 end
 
 local function distTo(v3)
@@ -138,14 +140,13 @@ end
 -- 🥩 4️⃣ اللوب الأساسي لوظيفة الـ Steak فقط
 -- ==========================================
 task.spawn(function()
-    ClearObstacles() -- حذف أولي للأبواب عند التشغيل
-    
+    ClearObstacles()
     while task.wait(0.3) do
         if Config.AutoSteak and Humanoid.Health > 0 then
             
             local currentJob = LocalPlayer:GetAttribute('Job')
             if currentJob ~= "steakhouse_cook" then
-                print("💼 تقديم طلب وظيفة الطاهي...")
+                print("💼 التوجه لأخذ وظيفة الطاهي...")
                 local jobBeacon = Vector3.new(-262.798, 252.909, 343.73)
                 if distTo(jobBeacon) > 5 then
                     TeleportTo(jobBeacon)
@@ -154,12 +155,10 @@ task.spawn(function()
                     task.wait(0.5)
                 end
             else
-                -- فحص توفر اللحم (نيء أو مطبوخ)
                 local hasSteak = Character:FindFirstChild("Raw Steak") or Backpack:FindFirstChild("Raw Steak") or 
                                  Character:FindFirstChild("Steak") or Backpack:FindFirstChild("Steak")
                 
                 if not hasSteak then
-                    -- التل بورت إلى الثلاجة للحصول على اللحم
                     local fridgePos = Vector3.new(-279.046, 252.909, 335.229)
                     if distTo(fridgePos) > 4 then
                         TeleportTo(fridgePos)
@@ -177,7 +176,6 @@ task.spawn(function()
                         end
                     end
                 else
-                    -- حجز الشواية وبدء الطهي فوراً
                     local success, freeGrill = pcall(function()
                         return NetGet:InvokeServer(14, "get_random_free_grill")
                     end)
@@ -192,10 +190,9 @@ task.spawn(function()
                             if grillPrompt then
                                 fireproximityprompt(grillPrompt)
                             end
-                            task.wait(4.5) -- مدة الطهي الآمنة
+                            task.wait(4.5)
                         end
                     else
-                        -- نظام بحث احتياطي عند ضغط السيرفر
                         for _, obj in pairs(workspace:GetDescendants()) do
                             if obj:IsA("Model") and obj.Name == "SteakGrill" then
                                 if (obj:GetAttribute("user_id_assigned") or 0) == 0 then
@@ -223,7 +220,6 @@ end)
 -- 📱 5️⃣ الواجهة العائمة المستقرة (Floating Toggle Button)
 -- ==========================================
 local CoreGui = game:GetService("CoreGui")
--- حذف الواجهة السابقة إذا كانت موجودة لمنع التكرار
 if CoreGui:FindFirstChild("MercyHub_SteakOnly") then
     CoreGui.MercyHub_SteakOnly:Destroy()
 end
@@ -255,7 +251,7 @@ local TitleLabel = Instance.new("TextLabel")
 TitleLabel.Size = UDim2.new(1, 0, 0.35, 0)
 TitleLabel.Position = UDim2.new(0, 0, 0.05, 0)
 TitleLabel.BackgroundTransparency = 1
-TitleLabel.Text = "MERCY HUB (STEAK + SAFETY)"
+TitleLabel.Text = "MERCY HUB (PATHFINDING)"
 TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 TitleLabel.Font = Enum.Font.GothamBold
 TitleLabel.TextSize = 10
@@ -288,4 +284,4 @@ ToggleBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-print("✅ تم التشغيل بنجاح! تم تنظيف الوظائف الأخرى وإبقاء حماية الشخصية وحذف الأبواب.")
+print("✅ تم استرجاع نظام المشي الذكي بنجاح وتثبيت حماية الأبواب والشخصية!")

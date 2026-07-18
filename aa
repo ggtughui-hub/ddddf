@@ -559,50 +559,73 @@ local function TeleportToSteak(pos)
     task.wait(0.5)
 end
 
--- دالة أخذ اللحم
-local function GetMeatFromFridge()
-    print("🥩 جاري أخذ اللحم من الثلاجة...")
+-- ========================================
+-- دالة GrabMeatFromFridge - أخذ اللحم من الثلاجة
+-- ========================================
+local function GrabMeatFromFridge()
+    print("🧊 التوجه للثلاجة لأخذ اللحم...")
     
+    -- التوجه للثلاجة
     TeleportToSteak(STEAK_POS.Fridge)
+    task.wait(0.5)
     
+    -- البحث عن الثلاجة
     local fridge = GetFridge()
     if not fridge then
-        task.wait(1)
-        fridge = GetFridge()
-        if not fridge then
-            print("❌ ما لقيت الثلاجة")
-            return false
-        end
+        print("❌ ما لقيت الثلاجة")
+        return false
     end
     
     local prompt = fridge:FindFirstChildWhichIsA("ProximityPrompt")
     if not prompt then
-        print("❌ ما لقيت ProximityPrompt")
+        print("❌ ما لقيت ProximityPrompt في الثلاجة")
         return false
     end
     
+    -- تفعيل الـ Prompt لأخذ اللحم
     fireproximityprompt(prompt)
-    print("📦 تم الضغط على الثلاجة")
+    task.wait(0.5)
     
-    local timeout = tick() + 5
-    while not HasMeatInHand() and tick() < timeout do
-        task.wait(0.1)
-    end
+    -- التأكد من أن اللاعب حمل اللحم
+    local player = game.Players.LocalPlayer
+    local character = player.Character or player.CharacterAdded:Wait()
     
-    if HasMeatInHand() then
+    -- البحث عن الأداة التي تحتوي على خاصية الطهي
+    local tool = character:FindFirstChildWhichIsA("Tool") or player.Backpack:FindFirstChildWhichIsA("Tool")
+    
+    if tool and tool:GetAttribute("IsCookable") then
+        -- إذا كانت الأداة في الحقيبة، قم بوضعها في اليد فوراً
+        if tool.Parent == player.Backpack then
+            player.Character.Humanoid:EquipTool(tool)
+        end
+        print("✅ تم حمل اللحم والتعرف عليه بنجاح!")
         SteakFarm.HasMeat = true
-        print("✅ اللحم في اليد")
         return true
     end
     
-    print("❌ ما ظهر اللحم")
+    print("❌ فشل في أخذ اللحم أو اللحم غير قابل للطهي")
     return false
 end
 
--- دالة الطهي
+-- ========================================
+-- دالة CookMeat - الطهي (معدلة بالكامل)
+-- ========================================
 local function CookMeat()
+    -- خطوة أولى: التأكد من حمل اللحم، وإذا لم يكن معك، اذهب واجلبه
+    local player = game.Players.LocalPlayer
+    local currentTool = player.Character and player.Character:FindFirstChildWhichIsA("Tool")
+    
+    if not (currentTool and currentTool:GetAttribute("IsCookable")) then
+        local grabbed = GrabMeatFromFridge()
+        if not grabbed then
+            task.wait(1)
+            return false
+        end
+    end
+
     print("🔥 جاري البحث عن شواية...")
     
+    -- 1. البحث عن شواية فارغة
     local grills = GetAvailableGrills()
     if #grills == 0 then
         print("⏳ ما فيه شواية فارغة")
@@ -613,29 +636,50 @@ local function CookMeat()
     local grill = grills[1]
     SteakFarm.CurrentGrill = grill.Model
     
-    TeleportToSteak(grill.Position + Vector3.new(0, 2, 0))
-    task.wait(0.5)
+    -- 2. التوجه للشواية
+    local grillPos = grill.Position + Vector3.new(0, 2, 0)
+    TeleportToSteak(grillPos)
     
-    print("🍖 جاري الطهي...")
+    -- 3. التأكد من الوصول ولمس منطقة الشواية
+    local timeout = tick() + 5
+    while distTo(grillPos) > 3 and tick() < timeout do
+        Sf:Teleport(grillPos, Config.SteakAutoFarm)
+        task.wait(0.3)
+    end
+    
+    print("✅ وصلت للشواية")
+    
+    -- 4. محاكاة اللمس (Touch) لمنطقة الشواية
+    local grillArea = grill.Model:FindFirstChild("GrillArea") or grill.Model:FindFirstChildWhichIsA("BasePart", true)
+    if grillArea and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        firetouchinterest(grillArea, player.Character.HumanoidRootPart, 0)
+        task.wait(0.1)
+        firetouchinterest(grillArea, player.Character.HumanoidRootPart, 1)
+    end
+    
+    print("🍖 جاري وضع اللحم...")
     SteakFarm.IsCooking = true
     
-    local cookTimeout = tick() + 35
-    while not IsMeatCooked(grill.Model) and tick() < cookTimeout do
+    -- 5. انتظار النضج
+    local cookTimeout = tick() + 40
+    while tick() < cookTimeout do
         task.wait(0.5)
         local status = grill.Model:GetAttribute("cooked_status") or "Cooking..."
         print("⏳ حالة الطهي: " .. status)
+        
+        if status == "Cooked" then
+            print("✅ اللحم نضج تماماً!")
+            break
+        elseif status == "Overcooked" then
+            print("❌ احترق اللحم!")
+            break
+        end
     end
     
     SteakFarm.IsCooking = false
     SteakFarm.HasMeat = false
     
-    if IsMeatCooked(grill.Model) then
-        print("✅ اللحم نضج!")
-        return true
-    end
-    
-    print("❌ اللحم ما نضج")
-    return false
+    return true
 end
 
 -- ========================================
@@ -676,13 +720,7 @@ local function StartSteakFarm()
     -- الخطوة 2: بدء حلقة الفارم
     -- ========================================
     while Config.SteakAutoFarm and SteakFarm.Active do
-        local success = GetMeatFromFridge()
-        if not success then
-            task.wait(1)
-            continue
-        end
-        
-        success = CookMeat()
+        local success = CookMeat()
         if not success then
             task.wait(1)
             continue

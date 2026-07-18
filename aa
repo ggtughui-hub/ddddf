@@ -531,12 +531,12 @@ local function GetAvailableGrills()
     return available
 end
 
--- التحقق من وجود لحم في اليد
-local function HasMeatInHand()
+-- التحقق من وجود لحم في اليد (Steak)
+local function HasSteakInHand()
     local char = Client.Character
     if not char then return false end
     for _, tool in pairs(char:GetChildren()) do
-        if tool:IsA("Tool") and tool:GetAttribute("IsCookable") then
+        if tool:IsA("Tool") and string.lower(tool.Name) == "steak" then
             return true
         end
     end
@@ -567,6 +567,9 @@ end
 -- دالة CookMeat - الطهي
 -- ========================================
 local function CookMeat()
+    local player = game.Players.LocalPlayer
+    local char = player.Character
+    
     -- 1. التوجه للثلاجة
     print("🧊 التوجه للثلاجة...")
     TeleportToSteak(STEAK_POS.Fridge)
@@ -584,48 +587,47 @@ local function CookMeat()
         return false
     end
 
-    -- 3. التأكد من حمل اللحم
-    local player = game.Players.LocalPlayer
-    local tool = player.Character:FindFirstChildWhichIsA("Tool") or player.Backpack:FindFirstChildWhichIsA("Tool")
-    if tool then
-        if tool.Parent == player.Backpack then
-            player.Character.Humanoid:EquipTool(tool)
-        end
-        print("✅ تم استلام اللحم بنجاح!")
-        SteakFarm.HasMeat = true
-    else
-        print("❌ لم يتم استلام اللحم")
+    -- 3. التأكد من أنك تمسك Steak
+    local tool = char:FindFirstChild("Steak")
+    if not tool then
+        print("❌ لا توجد Steak في يدك!")
         return false
     end
+    
+    print("✅ تم استلام اللحم بنجاح!")
+    SteakFarm.HasMeat = true
 
     print("🔥 جاري البحث عن شواية...")
     
-    -- 4. البحث عن شواية فارغة
-    local grills = GetAvailableGrills()
-    if #grills == 0 then
-        print("⏳ ما فيه شواية فارغة")
-        task.wait(2)
+    -- 4. البحث عن المشواة (Grill)
+    local grill = nil
+    for _, v in pairs(workspace:GetDescendants()) do
+        if string.find(string.lower(v.Name), "grill") then
+            grill = v
+            break
+        end
+    end
+
+    if not grill then
+        print("❌ لم يتم العثور على المشواة في الماب!")
         return false
     end
-    
-    local grill = grills[1]
-    SteakFarm.CurrentGrill = grill.Model
     
     -- 5. التوجه للشواية
     local grillPos = grill.Position + Vector3.new(0, 2, 0)
     TeleportToSteak(grillPos)
     
-    -- 6. التأكد من الوصول ولمس منطقة الشواية
+    -- 6. التأكد من الوصول
     local timeout = tick() + 5
     while distTo(grillPos) > 3 and tick() < timeout do
         Sf:Teleport(grillPos, Config.SteakAutoFarm)
         task.wait(0.3)
     end
     
-    print("✅ وصلت للشواية")
+    print("✅ وصلت للشواية، سيبدأ الشواء تلقائياً!")
     
     -- 7. محاكاة اللمس (Touch) لمنطقة الشواية
-    local grillArea = grill.Model:FindFirstChild("GrillArea") or grill.Model:FindFirstChildWhichIsA("BasePart", true)
+    local grillArea = grill:FindFirstChild("GrillArea") or grill:FindFirstChildWhichIsA("BasePart", true)
     if grillArea and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
         firetouchinterest(grillArea, player.Character.HumanoidRootPart, 0)
         task.wait(0.1)
@@ -639,7 +641,7 @@ local function CookMeat()
     local cookTimeout = tick() + 40
     while tick() < cookTimeout do
         task.wait(0.5)
-        local status = grill.Model:GetAttribute("cooked_status") or "Cooking..."
+        local status = grill:GetAttribute("cooked_status") or "Cooking..."
         print("⏳ حالة الطهي: " .. status)
         
         if status == "Cooked" then

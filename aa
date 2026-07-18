@@ -499,24 +499,16 @@ local STEAK_POS = {
 -- متغير لتخزين الشواية المخصصة
 local MyAssignedGrill = nil
 
--- دالة للحصول على الشواية المخصصة من any_new_result1_upvr
+-- ========================================
+-- دالة محسنة للحصول على الشواية المخصصة
+-- ========================================
 local function GetAssignedGrillFromGame()
-    -- البحث عن الشواية التي تم تخصيصها عن طريق الـ Beacon أو الـ Arrow
-    -- أو البحث عن الشواية التي حالتها "Cooking" أو "Empty"
+    local localPlayer = game.Players.LocalPlayer
     for _, obj in pairs(workspace:GetDescendants()) do
         if obj:IsA("Model") and obj.Name == "SteakGrill" then
-            -- التحقق إذا كانت الشواية تحتوي على Beacon أو Arrow
-            local beacon = obj:FindFirstChild("Beacon")
-            local arrow = obj:FindFirstChild("Arrow")
-            
-            -- إذا كانت الشواية تحتوي على Beacon أو Arrow، فهي المخصصة لك
-            if beacon or arrow then
-                return obj
-            end
-            
-            -- أو التحقق من user_id_assigned
-            local userId = obj:GetAttribute("user_id_assigned") or 0
-            if userId == game.Players.LocalPlayer.UserId then
+            -- القراءة المباشرة للـ Attribute (يجب أن يكون اسمها 'user_id_assigned')
+            local userId = obj:GetAttribute("user_id_assigned")
+            if userId and userId == localPlayer.UserId then
                 return obj
             end
         end
@@ -594,7 +586,7 @@ local function CookMeat()
     SteakFarm.HasMeat = true
     
     -- ========================================
-    -- 4. الحصول على الشواية المخصصة من any_new_result1_upvr
+    -- 4. الحصول على الشواية المخصصة من user_id_assigned
     -- ========================================
     print("📍 جاري البحث عن الشواية المخصصة...")
     

@@ -569,46 +569,55 @@ local function GrabMeatFromFridge()
     TeleportToSteak(STEAK_POS.Fridge)
     task.wait(0.5)
     
-    -- البحث عن الثلاجة
-    local fridge = GetFridge()
-    if not fridge then
-        print("❌ ما لقيت الثلاجة")
-        return false
+    -- البحث عن الـ ProximityPrompt الذي يظهر فيه نص "Get Steak"
+    local targetPrompt = nil
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("ProximityPrompt") and (v.ObjectText == "Get Steak" or v.ActionText == "Get Steak" or v.ObjectText == "Interact") then
+            targetPrompt = v
+            break
+        end
     end
     
-    local prompt = fridge:FindFirstChildWhichIsA("ProximityPrompt")
-    if not prompt then
-        print("❌ ما لقيت ProximityPrompt في الثلاجة")
+    if targetPrompt then
+        -- الانتقال لموقع الجزء الذي يحتوي على الـ Prompt
+        local fridgePart = targetPrompt.Parent
+        if fridgePart and fridgePart:IsA("BasePart") then
+            local fridgePos = fridgePart.Position + Vector3.new(0, 2, 0)
+            TeleportToSteak(fridgePos)
+            task.wait(0.5)
+            
+            -- تفعيل الـ Prompt (اضغط E تلقائياً)
+            fireproximityprompt(targetPrompt)
+            task.wait(0.5)
+        end
+    else
+        print("❌ لم يتم العثور على زر Get Steak في الخريطة!")
         return false
     end
-    
-    -- تفعيل الـ Prompt لأخذ اللحم
-    fireproximityprompt(prompt)
-    task.wait(0.5)
-    
-    -- التأكد من أن اللاعب حمل اللحم
+
+    -- التأكد من أن اللاعب حمل اللحم في اليد أو الحقيبة
     local player = game.Players.LocalPlayer
     local character = player.Character or player.CharacterAdded:Wait()
     
-    -- البحث عن الأداة التي تحتوي على خاصية الطهي
+    -- البحث عن الأداة التي تعطيها الثلاجة
     local tool = character:FindFirstChildWhichIsA("Tool") or player.Backpack:FindFirstChildWhichIsA("Tool")
     
-    if tool and tool:GetAttribute("IsCookable") then
-        -- إذا كانت الأداة في الحقيبة، قم بوضعها في اليد فوراً
+    if tool then
+        -- إذا كانت الأداة في الحقيبة، نضعها في اليد فوراً ليتعرف عليها كود الماب
         if tool.Parent == player.Backpack then
             player.Character.Humanoid:EquipTool(tool)
         end
-        print("✅ تم حمل اللحم والتعرف عليه بنجاح!")
+        print("✅ تم حمل اللحم بنجاح وتفعيله في اليد!")
         SteakFarm.HasMeat = true
         return true
     end
     
-    print("❌ فشل في أخذ اللحم أو اللحم غير قابل للطهي")
+    print("❌ تم ضغط الزر ولكن لم يظهر اللحم في الحقيبة")
     return false
 end
 
 -- ========================================
--- دالة CookMeat - الطهي (معدلة بالكامل)
+-- دالة CookMeat - الطهي
 -- ========================================
 local function CookMeat()
     -- خطوة أولى: التأكد من حمل اللحم، وإذا لم يكن معك، اذهب واجلبه

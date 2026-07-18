@@ -477,21 +477,19 @@ end
 function ClearPathLines() end
 
 -- ========================================
--- تعريف متغير للتحكم في الحالة
--- ========================================
-getgenv().AllowAutoGrill = false
-
--- ========================================
--- Hook للـ Net.get لمنع طلب الشواية التلقائي
+-- Hook لـ Net.get لمنع طلب الشواية التلقائي من السيرفر
 -- ========================================
 local oldNetGet
 oldNetGet = hookfunction(Net.get, function(name, ...)
-    if name == "get_random_free_grill" then
-        if not getgenv().AllowAutoGrill then
-            print("❌ تم حجب طلب الشواية التلقائي!")
-            return nil -- يمنع الطلب من الوصول للسيرفر
-        end
+    -- نتحقق هل الاسم هو "get_random_free_grill"
+    -- ونتحقق من المصدر (هل هو استدعاء من السيرفر؟)
+    if name == "get_random_free_grill" and checkcaller() == false then
+        -- هنا نحن في حالة طلب من السيرفر، نقوم بحجبه
+        print("❌ تم حجب طلب السيرفر لـ: " .. name)
+        return nil -- إيقاف الطلب تماماً
     end
+    
+    -- إذا كان طلباً آخر، أو طلباً من جهتك (Manual)، يمر كأن شيئاً لم يكن
     return oldNetGet(name, ...)
 end)
 
@@ -511,7 +509,7 @@ local SteakBeacon = nil
 local SteakArrow = nil
 
 -- ========================================
--- دالة الحصول على شواية من السيرفر
+-- دالة الحصول على شواية من السيرفر (يدوياً)
 -- ========================================
 local function GetRandomFreeGrill()
     print("📡 جاري طلب شواية من السيرفر...")
@@ -598,7 +596,7 @@ local function StartSteakFarm()
     print("🥩 بدء فارم Steak...")
     
     while Config.SteakAutoFarm and SteakFarm.Active do
-        -- 1. طلب شواية من السيرفر
+        -- 1. طلب شواية من السيرفر (يدوياً)
         local assignedGrill = GetRandomFreeGrill()
         
         if assignedGrill then

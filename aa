@@ -505,6 +505,17 @@ local function GetRandomFreeGrill()
     return nil
 end
 
+-- البحث عن Attachment في الشواية
+local function FindGrillAttachment(grill)
+    if not grill then return nil end
+    for _, obj in pairs(grill:GetDescendants()) do
+        if obj:IsA("Attachment") then
+            return obj
+        end
+    end
+    return nil
+end
+
 -- دالة البحث الصارم عن الـ Steak
 local function FindStrictlySteakStation()
     for _, v in pairs(workspace:GetDescendants()) do
@@ -570,9 +581,21 @@ local function CookMeat()
     
     if assignedGrill then
         print("✅ تم تخصيص شواية!")
-        -- التوجه للشواية التي أعطاها السيرفر
-        local grillPos = assignedGrill:GetPivot().Position + Vector3.new(0, 2, 0)
-        TeleportToSteak(grillPos)
+        
+        -- البحث عن Attachment في الشواية
+        local attachment = FindGrillAttachment(assignedGrill)
+        
+        if attachment then
+            -- التوجه لموقع Attachment
+            local targetPos = attachment.WorldPosition + Vector3.new(0, 2, 0)
+            print("📍 التوجه إلى Attachment...")
+            TeleportToSteak(targetPos)
+        else
+            -- إذا ما لقى Attachment يروح للشواية نفسها
+            local grillPos = assignedGrill:GetPivot().Position + Vector3.new(0, 2, 0)
+            print("📍 التوجه إلى الشواية...")
+            TeleportToSteak(grillPos)
+        end
         
         print("🔥 تم الوصول للشواية، سيبدأ الطهي تلقائياً!")
         SteakFarm.IsCooking = true

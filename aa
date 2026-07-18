@@ -496,6 +496,15 @@ local STEAK_POS = {
     Fridge = Vector3.new(-279.046, 252.909, 335.229),
 }
 
+-- جلب الشوايات الفارغة من السيرفر
+local function GetRandomFreeGrill()
+    local assignedGrill = Net.get("get_random_free_grill")
+    if assignedGrill then
+        return assignedGrill
+    end
+    return nil
+end
+
 -- دالة البحث الصارم عن الـ Steak
 local function FindStrictlySteakStation()
     for _, v in pairs(workspace:GetDescendants()) do
@@ -555,27 +564,23 @@ local function CookMeat()
     print("✅ تم استلام اللحم بنجاح!")
     SteakFarm.HasMeat = true
     
-    -- 4. البحث عن الـ Beacon (var44_upvw) والتوجه إليه
-    local beacon = nil
-    for _, obj in pairs(workspace:GetDescendants()) do
-        if obj:IsA("BasePart") and (string.find(string.lower(obj.Name), "beacon") or string.find(string.lower(obj.Name), "grill")) then
-            beacon = obj
-            break
-        end
-    end
+    -- 4. طلب شواية من السيرفر
+    print("📡 جاري طلب شواية من السيرفر...")
+    local assignedGrill = GetRandomFreeGrill()
     
-    if beacon then
-        print("📍 تم تحديد الـ Beacon، التوجه إليه فوراً...")
-        root.CFrame = beacon.CFrame + Vector3.new(0, 2, 0)
-        task.wait(1.5)
+    if assignedGrill then
+        print("✅ تم تخصيص شواية!")
+        -- التوجه للشواية التي أعطاها السيرفر
+        local grillPos = assignedGrill:GetPivot().Position + Vector3.new(0, 2, 0)
+        TeleportToSteak(grillPos)
         
-        print("🔥 وصلت لمكان الطهي!")
+        print("🔥 تم الوصول للشواية، سيبدأ الطهي تلقائياً!")
         SteakFarm.IsCooking = true
         
-        -- 5. الانتظار حتى يكتمل الطهي
+        -- 5. انتظار النضج
         local cookTimeout = tick() + 30
         while tick() < cookTimeout do
-            local status = beacon:GetAttribute("cooked_status") or ""
+            local status = assignedGrill:GetAttribute("cooked_status") or ""
             if status == "Cooked" or status == "Perfect" then
                 print("✅ اكتمل الطهي بنجاح!")
                 break
@@ -583,7 +588,7 @@ local function CookMeat()
             task.wait(0.5)
         end
     else
-        print("⚠️ لم أجد الـ Beacon المخصص للطهي!")
+        print("❌ لم يتم الحصول على شواية من السيرفر!")
         return false
     end
 

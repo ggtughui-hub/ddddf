@@ -6,39 +6,42 @@ ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = CoreGui
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 220, 0, 140) -- زدت الطول عشان يكفي الزر
+Frame.Size = UDim2.new(0, 220, 0, 150) -- تأكدت من الحجم هنا
 Frame.Position = UDim2.new(0.8, 0, 0.1, 0)
 Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 Frame.Active = true
 Frame.Draggable = true
 Frame.Parent = ScreenGui
 
+-- إضافة Layout للترتيب التلقائي
 local Layout = Instance.new("UIListLayout")
 Layout.Parent = Frame
 Layout.Padding = UDim.new(0, 5)
+Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
 -- النصوص
 local HoldingLabel = Instance.new("TextLabel")
-HoldingLabel.Size = UDim2.new(1, 0, 0.3, 0)
+HoldingLabel.Size = UDim2.new(0.9, 0, 0.25, 0)
 HoldingLabel.BackgroundTransparency = 1
 HoldingLabel.TextColor3 = Color3.new(1, 1, 1)
 HoldingLabel.Text = "Holding: Nothing"
 HoldingLabel.Parent = Frame
 
 local GrillLabel = Instance.new("TextLabel")
-GrillLabel.Size = UDim2.new(1, 0, 0.3, 0)
-HoldingLabel.BackgroundTransparency = 1
+GrillLabel.Size = UDim2.new(0.9, 0, 0.25, 0)
+GrillLabel.BackgroundTransparency = 1
 GrillLabel.TextColor3 = Color3.new(1, 1, 1)
 GrillLabel.Text = "Grill: Idle"
 GrillLabel.Parent = Frame
 
 -- زر الاستئجار
 local RentButton = Instance.new("TextButton")
-RentButton.Size = UDim2.new(1, -10, 0, 30)
+RentButton.Size = UDim2.new(0.9, 0, 0.3, 0)
 RentButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 RentButton.TextColor3 = Color3.new(1, 1, 1)
 RentButton.Text = "Rent Home"
 RentButton.Parent = Frame
+RentButton.ZIndex = 2 -- لضمان ظهور الزر فوق أي شيء
 
 -- المنطق البرمجي (الحماية والطلب)
 local isRenting = false
@@ -59,28 +62,25 @@ RentButton.MouseButton1Click:Connect(function()
     if success then
         RentButton.Text = "✅ Rented!"
         RentButton.BackgroundColor3 = Color3.fromRGB(50, 100, 50)
+        task.wait(2)
     else
         RentButton.Text = "❌ Failed"
         warn("Rent Error: " .. tostring(err))
     end
     
-    task.wait(3)
+    task.wait(2)
     isRenting = false
     RentButton.Text = "Rent Home"
     RentButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 end)
 
--- وظيفة فحص اللحم والشواية (كما اتفقنا)
+-- فحص اللحم والشواية
 task.spawn(function()
     while task.wait(0.5) do
         local char = game.Players.LocalPlayer.Character
         local tool = char and char:FindFirstChildOfClass("Tool")
         
-        if tool then
-            HoldingLabel.Text = "Holding: " .. tool.Name
-        else
-            HoldingLabel.Text = "Holding: Nothing"
-        end
+        HoldingLabel.Text = tool and "Holding: " .. tool.Name or "Holding: Nothing"
 
         if tool and tool.Name == "Steak" then
             local foundGrill = false

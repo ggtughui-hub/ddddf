@@ -1,9 +1,9 @@
 -- ========================================
--- 🥩 STEAMHOUSE FARM - النسخة الكاملة
+-- 🥩 STEAMHOUSE FARM - النسخة الكاملة النهائية
 -- ========================================
 
 -- ========================================
--- 1. إزالة أبواب الدخول (اختياري)
+-- 1. إزالة الأبواب
 -- ========================================
 for _, obj in pairs(workspace:GetDescendants()) do
     if obj:IsA("Model") and obj.Name == "DoorSystem" then
@@ -75,7 +75,7 @@ workspace.DescendantAdded:Connect(function(obj)
 end)
 
 -- ========================================
--- 5. نظام الـ Net (المعدل)
+-- 5. نظام الـ Net
 -- ========================================
 local RS = game:GetService("ReplicatedStorage")
 local v_u_1 = {}
@@ -101,10 +101,6 @@ function v_u_1.hook(p_u_9, p_u_10)
     else
         v_u_1.on_connect(function() v_u_1.hook(p_u_9, p_u_10) end)
     end
-end
-
-function v_u_1.is_connected(p11)
-    return p11:GetAttribute("IsConnected") and true or false
 end
 
 task.wait(0.1)
@@ -141,8 +137,6 @@ local function v_u_29()
         for v28 = 1, #v_u_7 do v_u_7[v28]() end
     end)
 end
-
-function v_u_1.initiate() end
 
 function v_u_1.loaded()
     function v_u_3.get.OnClientInvoke(p30)
@@ -207,19 +201,15 @@ local Players = game:GetService('Players')
 local RunService = game:GetService('RunService')
 local HttpService = game:GetService("HttpService")
 local UserInputService = game:GetService("UserInputService")
-local Debris = game:GetService("Debris")
 local CoreGui = game:GetService("CoreGui")
 
 local Net = require(ReplicatedStorage.Modules.Core.Net)
-local SprintModule = require(ReplicatedStorage.Modules.Game.Sprint)
-local CharModule = require(ReplicatedStorage.Modules.Core.Char)
 
 -- ========================================
 -- 9. مراجع اللاعب
 -- ========================================
 local Client = Players.LocalPlayer
 local Character = Client.Character or Client.CharacterAdded:Wait()
-local PlayerGui = Client.PlayerGui
 local Humanoid = Character:WaitForChild("Humanoid")
 local RootPart = Character:WaitForChild("HumanoidRootPart")
 local Backpack = Client:WaitForChild("Backpack")
@@ -245,16 +235,12 @@ local function c() return Config end
 local Sf = {}
 local func = {}
 
-local function distTo(v3)
-    return (v3 - RootPart.Position).Magnitude
-end
-
 local function JobNow()
     return Client:GetAttribute('Job')
 end
 
 -- ========================================
--- 11. دوال التحكم
+-- 11. دوال التحكم (نفس كودك الأصلي)
 -- ========================================
 function Sf:ForceStop()
     if c()['Running'] then
@@ -271,10 +257,12 @@ function Sf:Ac(...)
     return Net.send(...)
 end
 
-function Sf:Teleport(destination, value, speed)
+-- ========================================
+-- دالة Teleport - نفس كودك الأصلي بالضبط
+-- ========================================
+function Sf:Teleport(destination, value, t, speed)
     c().StopWalking = false
     c()['Running'] = true
-    
     local char = Client.Character or Client.CharacterAdded:Wait()
     local RootPart = char:WaitForChild("HumanoidRootPart")
     local Humanoid = char:WaitForChild("Humanoid")
@@ -332,14 +320,16 @@ function Sf:Teleport(destination, value, speed)
             end
             
             c()['Running'] = false
-            if not value then break end
+            if not value then
+                break
+            end
         end
     end
     c()['Running'] = false
 end
 
 -- ========================================
--- 12. نظام ستيك فارم (المعدل بالكامل)
+-- 12. نظام ستيك فارم
 -- ========================================
 
 -- الأحداثيات
@@ -348,18 +338,14 @@ local STEAK_POS = {
     Fridge = Vector3.new(-279.046, 252.909, 335.229),
 }
 
--- متغيرات ستيك فارم
 local SteakFarm = {
     Active = false,
     IsCooking = false,
     HasMeat = false,
     CurrentGrill = nil,
-    CurrentGrillId = nil,
 }
 
--- ========================================
 -- دالة البحث عن ProximityPrompt "Steak"
--- ========================================
 local function FindStrictlySteakStation()
     for _, v in pairs(workspace:GetDescendants()) do
         if v:IsA("ProximityPrompt") then
@@ -373,15 +359,12 @@ local function FindStrictlySteakStation()
     return nil
 end
 
--- ========================================
--- دالة الحصول على الشواية المخصصة (الطريقة الصحيحة)
--- ========================================
+-- دالة الحصول على الشواية المخصصة (عن طريق Weld)
 local function GetAssignedGrill()
     local localPlayer = game.Players.LocalPlayer
     local character = localPlayer.Character
     if not character then return nil end
     
-    -- نبحث عن الأداة اللي مع اللاعب (اللحم)
     local heldTool = nil
     for _, tool in pairs(character:GetChildren()) do
         if tool:IsA("Tool") and tool:GetAttribute("IsCookable") then
@@ -391,11 +374,9 @@ local function GetAssignedGrill()
     end
     
     if not heldTool then
-        print("❌ ما عندك أداة قابلة للطهي")
         return nil
     end
     
-    -- نبحث عن الشواية اللي فيها اللحم (عن طريق الـ Weld)
     for _, obj in pairs(workspace:GetDescendants()) do
         if obj:IsA("Model") and obj.Name == "SteakGrill" then
             for _, part in pairs(obj:GetDescendants()) do
@@ -403,7 +384,6 @@ local function GetAssignedGrill()
                     for _, weld in pairs(part:GetChildren()) do
                         if weld:IsA("Weld") or weld:IsA("WeldConstraint") then
                             if weld.Part0 == heldTool or weld.Part1 == heldTool then
-                                print("✅ تم العثور على الشواية المخصصة لك!")
                                 return obj
                             end
                         end
@@ -417,7 +397,7 @@ local function GetAssignedGrill()
 end
 
 -- ========================================
--- دالة CookMeat - النسخة المجربة 100%
+-- دالة CookMeat الرئيسية
 -- ========================================
 local function CookMeat()
     local player = game.Players.LocalPlayer
@@ -429,16 +409,12 @@ local function CookMeat()
         return false
     end
     
-    -- ========================================
     -- 1. التوجه للثلاجة
-    -- ========================================
     print("🧊 التوجه للثلاجة...")
-    Sf:Teleport(STEAK_POS.Fridge, Config.SteakAutoFarm)
+    Sf:Teleport(STEAK_POS.Fridge, Config.SteakAutoFarm, nil, 34)
     task.wait(0.5)
     
-    -- ========================================
     -- 2. البحث عن ProximityPrompt "Steak"
-    -- ========================================
     local targetPrompt = FindStrictlySteakStation()
     
     if targetPrompt then
@@ -450,9 +426,7 @@ local function CookMeat()
         return false
     end
 
-    -- ========================================
     -- 3. التأكد من وجود اللحم
-    -- ========================================
     local meatTool = nil
     for _, tool in pairs(char:GetChildren()) do
         if tool:IsA("Tool") and tool:GetAttribute("IsCookable") then
@@ -469,9 +443,7 @@ local function CookMeat()
     print("✅ تم استلام اللحم! (" .. meatTool.Name .. ")")
     SteakFarm.HasMeat = true
     
-    -- ========================================
-    -- 4. انتظار السيرفر لتخصيص الشواية (مع إعادة المحاولة)
-    -- ========================================
+    -- 4. انتظار تخصيص الشواية
     print("⏳ انتظار تخصيص الشواية من السيرفر...")
     
     local assignedGrill = nil
@@ -483,22 +455,20 @@ local function CookMeat()
         assignedGrill = GetAssignedGrill()
         
         if not assignedGrill then
-            print("🔄 محاولة " .. retryCount .. "/" .. maxRetries .. " - انتظار 1 ثانية...")
+            print("🔄 محاولة " .. retryCount .. "/" .. maxRetries)
             task.wait(1)
         end
     end
     
     if not assignedGrill then
-        print("❌ لم يتم العثور على شواية مخصصة بعد " .. maxRetries .. " محاولات!")
+        print("❌ لم يتم العثور على شواية مخصصة!")
         return false
     end
     
     print("✅ تم العثور على الشواية المخصصة!")
     SteakFarm.CurrentGrill = assignedGrill
     
-    -- ========================================
     -- 5. التوجه للشواية
-    -- ========================================
     local grillArea = assignedGrill:FindFirstChild("GrillArea")
     local targetPos
     
@@ -510,18 +480,14 @@ local function CookMeat()
         print("📍 التوجه إلى الشواية...")
     end
     
-    Sf:Teleport(targetPos, Config.SteakAutoFarm)
+    Sf:Teleport(targetPos, Config.SteakAutoFarm, nil, 34)
     task.wait(0.5)
     
-    -- ========================================
-    -- 6. بدء الطهي (طريقتين: اللمس أو الإرسال المباشر)
-    -- ========================================
+    -- 6. بدء الطهي
     print("🔥 جاري تشغيل الطهي...")
     
-    -- الطريقة 1: إرسال طلب بدء الطهي للسيرفر
     Net.send("start_grilling_2", assignedGrill)
     
-    -- الطريقة 2: محاولة اللمس (كـ Backup)
     if grillArea then
         local charRoot = char:FindFirstChild("HumanoidRootPart")
         if charRoot then
@@ -533,18 +499,14 @@ local function CookMeat()
     
     SteakFarm.IsCooking = true
     
-    -- ========================================
-    -- 7. انتظار الطهي مع مراقبة الحالة
-    -- ========================================
+    -- 7. انتظار الطهي
     print("⏳ انتظار الطهي... (الحد الأقصى 35 ثانية)")
     local cookTimeout = tick() + 35
     local lastStatus = ""
     
     while tick() < cookTimeout do
-        -- طريقة 1: مراقبة الـ Attribute
         local status = assignedGrill:GetAttribute("cooked_status") or ""
         
-        -- طريقة 2: مراقبة حالة اللحم (إذا اختفى يعني انتهى)
         local stillHasMeat = false
         for _, tool in pairs(char:GetChildren()) do
             if tool:IsA("Tool") and tool:GetAttribute("IsCookable") then
@@ -554,7 +516,7 @@ local function CookMeat()
         end
         
         if not stillHasMeat and status == "" then
-            print("✅ اللحم اختفى - يعني اكتمل الطهي!")
+            print("✅ اللحم اختفى - اكتمل الطهي!")
             break
         end
         
@@ -571,17 +533,10 @@ local function CookMeat()
             break
         end
         
-        if not stillHasMeat and tick() - cookTimeout > 5 then
-            print("❌ اللحم اختفى قبل اكتمال الطهي!")
-            break
-        end
-        
         task.wait(0.5)
     end
 
-    -- ========================================
     -- 8. تنظيف
-    -- ========================================
     SteakFarm.IsCooking = false
     SteakFarm.HasMeat = false
     SteakFarm.CurrentGrill = nil
@@ -591,23 +546,23 @@ local function CookMeat()
 end
 
 -- ========================================
--- 13. الدالة الرئيسية - StartSteakFarm
+-- 13. الدالة الرئيسية
 -- ========================================
 local function StartSteakFarm()
     print("🥩 بدء فارم Steak...")
     
-    -- ========================================
-    -- الخطوة 1: التحقق من التوظيف
-    -- ========================================
+    -- التحقق من التوظيف
     if JobNow() ~= "steakhouse_cook" then
         print("🚶 جاري التوجه للتوظيف...")
         
-        Sf:Teleport(STEAK_POS.Apply, Config.SteakAutoFarm)
+        Sf:Teleport(STEAK_POS.Apply, Config.SteakAutoFarm, nil, 34)
         task.wait(0.5)
         
         local beacon = workspace:FindFirstChild("SteakHouseBeacon")
         if not beacon then
-            beacon = workspace.Map.Tiles.ShoppingTile.SteakHouse.Interior:FindFirstChild("SteakHouseBeacon")
+            pcall(function()
+                beacon = workspace.Map.Tiles.ShoppingTile.SteakHouse.Interior:FindFirstChild("SteakHouseBeacon")
+            end)
         end
         
         if beacon then
@@ -622,9 +577,7 @@ local function StartSteakFarm()
         print("✅ أنت موظف في Steakhouse")
     end
     
-    -- ========================================
-    -- الخطوة 2: الانتظار حتى تصبح موظفاً
-    -- ========================================
+    -- انتظار قبول التوظيف
     local waitCount = 0
     while JobNow() ~= "steakhouse_cook" and waitCount < 10 do
         task.wait(1)
@@ -639,9 +592,7 @@ local function StartSteakFarm()
     
     print("✅ تم قبول التوظيف! بدء الفارم...")
     
-    -- ========================================
-    -- الخطوة 3: بدء حلقة الفارم
-    -- ========================================
+    -- حلقة الفارم
     local cycleCount = 0
     
     while Config.SteakAutoFarm and SteakFarm.Active do
@@ -651,10 +602,8 @@ local function StartSteakFarm()
         local success = CookMeat()
         
         if not success then
-            print("⚠️ فشلت الدورة، إعادة المحاولة بعد 2 ثانية...")
+            print("⚠️ فشلت الدورة، إعادة المحاولة...")
             task.wait(2)
-            
-            -- إعادة تعيين المتغيرات
             SteakFarm.IsCooking = false
             SteakFarm.HasMeat = false
             SteakFarm.CurrentGrill = nil
@@ -675,7 +624,7 @@ func['SteakFarm'] = StartSteakFarm
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
 local Window = WindUI:CreateWindow({
-    Title = "Steak Farm V2",
+    Title = "🥩 Steak Farm V2",
     Icon = "rbxassetid://118194721156015",
     Author = "Steak Farm",
     Folder = "steak_farm",
@@ -793,3 +742,4 @@ task.spawn(function()
 end)
 
 print("✅ تم تحميل كود Steak Farm V2 بنجاح!")
+print("🔥 اضغط T لفتح الواجهة")

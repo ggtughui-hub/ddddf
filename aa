@@ -500,15 +500,20 @@ local STEAK_POS = {
 local MyAssignedGrill = nil
 
 -- ========================================
--- دالة محسنة للحصول على الشواية المخصصة
+-- دالة محسنة للحصول على الشواية المخصصة (مع طباعة للاختبار)
 -- ========================================
 local function GetAssignedGrillFromGame()
     local localPlayer = game.Players.LocalPlayer
     for _, obj in pairs(workspace:GetDescendants()) do
         if obj:IsA("Model") and obj.Name == "SteakGrill" then
-            -- القراءة المباشرة للـ Attribute (يجب أن يكون اسمها 'user_id_assigned')
             local userId = obj:GetAttribute("user_id_assigned")
+            -- طباعة للاختبار
+            if userId then
+                print("🔍 تم العثور على شواية مع userId: " .. userId)
+            end
+            
             if userId and userId == localPlayer.UserId then
+                print("✅ تم العثور على الشواية المخصصة لك!")
                 return obj
             end
         end
@@ -547,7 +552,7 @@ local function TeleportToSteak(pos)
 end
 
 -- ========================================
--- دالة CookMeat - الطهي
+-- دالة CookMeat - الطهي (معدلة مع تأخير ذكي)
 -- ========================================
 local function CookMeat()
     local player = game.Players.LocalPlayer
@@ -577,69 +582,73 @@ local function CookMeat()
     end
 
     -- 3. التأكد من وجود اللحم
-    if not char:FindFirstChild("Steak") then
-        print("❌ لم يتم التقاط اللحم!")
-        return false
-    end
-    
-    print("✅ تم استلام اللحم بنجاح!")
-    SteakFarm.HasMeat = true
-    
-    -- ========================================
-    -- 4. الحصول على الشواية المخصصة من user_id_assigned
-    -- ========================================
-    print("📍 جاري البحث عن الشواية المخصصة...")
-    
-    -- محاولة الحصول على الشواية المخصصة
-    MyAssignedGrill = GetAssignedGrillFromGame()
-    
-    -- إذا ما لقى، نحاول ننتظر شوية
-    if not MyAssignedGrill then
-        print("⏳ انتظار تخصيص الشواية...")
-        local waitTimeout = tick() + 5
-        while not MyAssignedGrill and tick() < waitTimeout do
-            task.wait(0.5)
-            MyAssignedGrill = GetAssignedGrillFromGame()
-        end
-    end
-    
-    if MyAssignedGrill then
-        print("✅ تم العثور على الشواية المخصصة!")
-        SteakFarm.CurrentGrill = MyAssignedGrill
+    if char:FindFirstChild("Steak") then
+        print("✅ تم استلام اللحم! انتظار السيرفر لتعيين الشواية...")
         
-        -- البحث عن GrillArea في الشواية المخصصة
-        local grillAreaPos = GetGrillAreaPosition(MyAssignedGrill)
+        -- ✅ انتظار السيرفر لتحديث الـ Attribute (2 ثانية)
+        task.wait(2)
         
-        if grillAreaPos then
-            -- التوجه لموقع GrillArea
-            local targetPos = grillAreaPos + Vector3.new(0, 2, 0)
-            print("📍 التوجه إلى GrillArea...")
-            TeleportToSteak(targetPos)
-        else
-            -- إذا ما لقى GrillArea يروح للشواية نفسها
-            local grillPos = MyAssignedGrill:GetPivot().Position + Vector3.new(0, 2, 0)
-            print("📍 التوجه إلى الشواية...")
-            TeleportToSteak(grillPos)
-        end
+        SteakFarm.HasMeat = true
         
-        print("🔥 تم الوصول للشواية، سيبدأ الطهي تلقائياً!")
-        SteakFarm.IsCooking = true
+        -- ========================================
+        -- 4. الحصول على الشواية المخصصة
+        -- ========================================
+        print("📍 جاري البحث عن الشواية المخصصة...")
         
-        -- 5. انتظار النضج
-        local cookTimeout = tick() + 30
-        while tick() < cookTimeout do
-            local status = MyAssignedGrill:GetAttribute("cooked_status") or ""
-            if status == "Cooked" or status == "Perfect" then
-                print("✅ اكتمل الطهي بنجاح!")
-                break
-            elseif status == "Overcooked" then
-                print("❌ احترق اللحم!")
-                break
+        -- محاولة الحصول على الشواية المخصصة
+        MyAssignedGrill = GetAssignedGrillFromGame()
+        
+        -- إذا ما لقى، نحاول ننتظر شوية
+        if not MyAssignedGrill then
+            print("⏳ انتظار تخصيص الشواية...")
+            local waitTimeout = tick() + 5
+            while not MyAssignedGrill and tick() < waitTimeout do
+                task.wait(0.5)
+                MyAssignedGrill = GetAssignedGrillFromGame()
             end
-            task.wait(0.5)
+        end
+        
+        if MyAssignedGrill then
+            print("✅ تم العثور على الشواية المخصصة!")
+            SteakFarm.CurrentGrill = MyAssignedGrill
+            
+            -- البحث عن GrillArea في الشواية المخصصة
+            local grillAreaPos = GetGrillAreaPosition(MyAssignedGrill)
+            
+            if grillAreaPos then
+                -- التوجه لموقع GrillArea
+                local targetPos = grillAreaPos + Vector3.new(0, 2, 0)
+                print("📍 التوجه إلى GrillArea...")
+                TeleportToSteak(targetPos)
+            else
+                -- إذا ما لقى GrillArea يروح للشواية نفسها
+                local grillPos = MyAssignedGrill:GetPivot().Position + Vector3.new(0, 2, 0)
+                print("📍 التوجه إلى الشواية...")
+                TeleportToSteak(grillPos)
+            end
+            
+            print("🔥 تم الوصول للشواية، سيبدأ الطهي تلقائياً!")
+            SteakFarm.IsCooking = true
+            
+            -- 5. انتظار النضج
+            local cookTimeout = tick() + 30
+            while tick() < cookTimeout do
+                local status = MyAssignedGrill:GetAttribute("cooked_status") or ""
+                if status == "Cooked" or status == "Perfect" then
+                    print("✅ اكتمل الطهي بنجاح!")
+                    break
+                elseif status == "Overcooked" then
+                    print("❌ احترق اللحم!")
+                    break
+                end
+                task.wait(0.5)
+            end
+        else
+            print("❌ لم يتم العثور على شواية مخصصة!")
+            return false
         end
     else
-        print("❌ لم يتم العثور على شواية مخصصة!")
+        print("❌ لم يتم التقاط اللحم!")
         return false
     end
 

@@ -769,7 +769,8 @@ local function createReportFrame(screenGui)
     sendBtn.Text = "🚀 إرسال البلاغ الآن"
     sendBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     sendBtn.Font = Enum.Font.GothamBold
-    sendBtn.TextSize = 13    sendBtn.Parent = rFrame
+    sendBtn.TextSize = 13
+    sendBtn.Parent = rFrame
     Instance.new("UICorner", sendBtn).CornerRadius = UDim.new(0, 8)
 
     -- منطق الإرسال عبر الويب هوك مع تفعيل الحماية من السبام
@@ -1081,7 +1082,7 @@ local function originalCode()
 
     -- واجهة الجوال الرئيسية
     local mobileMain = Instance.new("Frame")
-    mobileMain.Size = UDim2.new(0, 280, 0, 280) -- تكبير خفيف لاستيعاب الأزرار الجديدة للجوال
+    mobileMain.Size = UDim2.new(0, 280, 0, 280)
     mobileMain.Position = UDim2.new(0, 15, 0.35, 0)
     mobileMain.BackgroundColor3 = Color3.fromRGB(10, 10, 14)
     mobileMain.BorderSizePixel = 0

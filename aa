@@ -516,7 +516,7 @@ end
 local currentKey = Enum.KeyCode.Q
 local isWaitingForKey = false
 local isMobile = false
-local deviceTypeString = "PC" -- لتحديد نوع الجهاز للتقرير تلقائياً
+local deviceTypeString = "PC"
 local autoFarmActive = false
 local autoFarmThread = nil
 local SliderMinigame = nil
@@ -704,9 +704,8 @@ local function createUpdatesFrame(screenGui)
         tLabel.Parent = item
     end
 
-    -- ربط التواريخ المطلوبة بدقة (قبل أسبوعين وتحديث اليوم)
-    addLog("11 / 07 / 2026 (اليوم)", "• تحسينات وتطويرات كبرى شاملة في القائمة GUI.")
-    addLog("27 / 06 / 2026 (قبل أسبوعين)", "• إضافة نظام رمي الأسماك التلقائي (Fish Manager).")
+    -- ✅ التحديث الجديد فقط
+    addLog("2026/07/19 (اليوم)", "• تم تحديث رمي الاسماك")
     
     return uFrame
 end
@@ -773,7 +772,6 @@ local function createReportFrame(screenGui)
     sendBtn.Parent = rFrame
     Instance.new("UICorner", sendBtn).CornerRadius = UDim.new(0, 8)
 
-    -- منطق الإرسال عبر الويب هوك مع تفعيل الحماية من السبام
     sendBtn.MouseButton1Click:Connect(function()
         local currentTime = os.time()
         if currentTime - lastReportTime < REPORT_COOLDOWN then
@@ -791,7 +789,6 @@ local function createReportFrame(screenGui)
         sendBtn.Text = "⏳ جاري الإرسال..."
         sendBtn.Active = false
 
-        -- إرسال البيانات للويب هوك بشكل منظم دون أي تسريبات
         task.spawn(function()
             local success, _ = pcall(function()
                 local payload = HttpService:JSONEncode({
@@ -808,7 +805,6 @@ local function createReportFrame(screenGui)
                     }}
                 })
                 
-                -- إرسال الويب هوك باستخدام طلب المشغل القياسي لضمان عدم حدوث أي تغيير خارجي في السلوك
                 if request then
                     request({Url = WEBHOOK_URL, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = payload})
                 elseif syn and syn.request then
@@ -980,7 +976,6 @@ local function originalCode()
     fishManagerBtn.Parent = titleBar
     Instance.new("UICorner", fishManagerBtn).CornerRadius = UDim.new(0, 8)
 
-    -- زر آخر التحديثات للكمبيوتر
     local pcUpdatesBtn = Instance.new("TextButton")
     pcUpdatesBtn.Size = UDim2.new(0, 32, 0, 32)
     pcUpdatesBtn.Position = UDim2.new(0, 78, 0, 6)
@@ -993,7 +988,6 @@ local function originalCode()
     Instance.new("UICorner", pcUpdatesBtn).CornerRadius = UDim.new(0, 8)
     pcUpdatesBtn.MouseButton1Click:Connect(function() updatesFrame.Visible = not updatesFrame.Visible end)
 
-    -- زر الإبلاغ عن مشكلة للكمبيوتر
     local pcReportBtn = Instance.new("TextButton")
     pcReportBtn.Size = UDim2.new(0, 32, 0, 32)
     pcReportBtn.Position = UDim2.new(0, 114, 0, 6)
@@ -1161,7 +1155,6 @@ local function originalCode()
     mobCircleBtn.Parent = mobInner
     Instance.new("UICorner", mobCircleBtn).CornerRadius = UDim.new(0, 8)
 
-    -- زر آخر التحديثات للجوال
     local mobUpdatesBtn = Instance.new("TextButton")
     mobUpdatesBtn.Size = UDim2.new(1, -24, 0, 38)
     mobUpdatesBtn.Position = UDim2.new(0, 12, 0, 140)
@@ -1174,7 +1167,6 @@ local function originalCode()
     Instance.new("UICorner", mobUpdatesBtn).CornerRadius = UDim.new(0, 8)
     mobUpdatesBtn.MouseButton1Click:Connect(function() updatesFrame.Visible = not updatesFrame.Visible end)
 
-    -- زر الإبلاغ عن مشكلة للجوال
     local mobReportBtn = Instance.new("TextButton")
     mobReportBtn.Size = UDim2.new(1, -24, 0, 38)
     mobReportBtn.Position = UDim2.new(0, 12, 0, 183)

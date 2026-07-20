@@ -19,10 +19,15 @@ local FishTab = Window:AddTab({ Title = "🎣 الصيد", Icon = "fish" })
 local PathfindingService = game:GetService("PathfindingService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character
+local Humanoid = Character and Character:FindFirstChild("Humanoid")
+local HumanoidRootPart = Character and Character:FindFirstChild("HumanoidRootPart")
 
+-- متغيرات التحكم
 local FishEnabled = false
-local FishTask = nil
 local CurrentDestination = nil
+local Running = false
+local StopWalking = false
 
 -- الإحداثيات المطلوبة (مكان الصيد)
 local FISHING_SPOTS = {
@@ -31,28 +36,38 @@ local FISHING_SPOTS = {
     -- Vector3.new(x, y, z),
 }
 
--- ===================== نظام المسارات الذكي =====================
-local function ShouldContinue()
-    return FishEnabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+-- ===================== نظام المشي المخصص =====================
+
+-- دالة التحقق من استمرارية التشغيل
+local function shouldContinue(value)
+    return FishEnabled and Character and Humanoid and HumanoidRootPart
 end
 
-local function WalkTo(destination)
-    if not LocalPlayer.Character then 
-        print("❌ الشخصية غير موجودة")
+-- دالة تعيين سرعة المشي
+local function SetWalkSpeed(speed)
+    if Character and Humanoid then
+        Humanoid.WalkSpeed = speed
+        print("⚡ تم تغيير سرعة المشي إلى: " .. speed)
+    end
+end
+
+-- دالة المشي الذكي مع المسارات
+local function WalkTo(destination, value, customSpeed)
+    if not Character or not HumanoidRootPart or not Humanoid then
+        Running = false
         return false
     end
     
-    local Character = LocalPlayer.Character
-    local HumanoidRootPart = Character:FindFirstChild("HumanoidRootPart")
-    local Humanoid = Character:FindFirstChild("Humanoid")
-    
-    if not HumanoidRootPart or not Humanoid then
-        print("❌ الأجزاء الأساسية غير موجودة")
-        return false
+    -- تطبيق السرعة المحددة إذا تم تمريرها
+    if customSpeed then
+        SetWalkSpeed(customSpeed)
     end
+    
+    StopWalking = false
+    Running = true
+    CurrentDestination = destination
     
     print("🚶 جاري التوجه إلى: " .. tostring(destination))
-    CurrentDestination = destination
     
     -- إنشاء مسار ذكي
     local path = PathfindingService:CreatePath({
@@ -76,21 +91,25 @@ local function WalkTo(destination)
     
     -- إذا فشل حساب المسار، نتحرك مباشرة
     if not success or path.Status ~= Enum.PathStatus.Success then
+        Running = false
         print("⚠️ فشل حساب المسار الذكي، استخدام الحركة المباشرة")
         Humanoid:MoveTo(destination)
         
         -- ننتظر حتى الوصول أو انتهاء الوقت
         local timeout = tick() + 10
-        while tick() < timeout and ShouldContinue() do
+        while tick() < timeout and shouldContinue(value) do
+            if not Character or not HumanoidRootPart then break end
             local distance = (HumanoidRootPart.Position - destination).Magnitude
             if distance < 5 then
                 print("✅ تم الوصول إلى الهدف (حركة مباشرة)")
+                Running = false
                 CurrentDestination = nil
                 return true
             end
             task.wait(0.1)
         end
         
+        Running = false
         CurrentDestination = nil
         return false
     end
@@ -101,10 +120,16 @@ local function WalkTo(destination)
     
     -- التنقل عبر نقاط المسار
     for i, waypoint in pairs(waypoints) do
-        if not ShouldContinue() then
-            print("⏹️ تم إيقاف المسار")
-            CurrentDestination = nil
+        if not Character or not HumanoidRootPart or not Humanoid then
+            Running = false
             return false
+        end
+        
+        Running = true
+        
+        if not shouldContinue(value) then
+            Running = false
+            break
         end
         
         -- قفز عند الحاجة
@@ -118,7 +143,6 @@ local function WalkTo(destination)
         -- انتظار الوصول إلى النقطة
         local reached = false
         local connection
-        
         connection = Humanoid.MoveToFinished:Connect(function(isReached)
             reached = true
             if connection then
@@ -128,7 +152,7 @@ local function WalkTo(destination)
         
         -- مهلة 5 ثواني لكل نقطة
         local timeout = tick() + 5
-        while not reached and tick() < timeout and ShouldContinue() do
+        while not reached and tick() < timeout and shouldContinue(value) do
             task.wait(0.05)
         end
         
@@ -136,23 +160,57 @@ local function WalkTo(destination)
             connection:Disconnect()
         end
         
-        if not ShouldContinue() then
-            CurrentDestination = nil
-            return false
+        if not shouldContinue(value) then
+            break
         end
     end
     
-    print("✅ تم الوصول إلى الهدف بنجاح!")
+    Running = false
     CurrentDestination = nil
+    print("✅ تم الوصول إلى الهدف بنجاح!")
+    return true
+end
+
+-- دالة التليفورت (الانتقال السريع)
+local function TeleportToArea(destination, value, speed)
+    if not Character or not HumanoidRootPart then return false end
+    
+    Running = true
+    print("🌀 جاري التليفورت إلى: " .. tostring(destination))
+    
+    local startPos = HumanoidRootPart.Position
+    local distance = (destination - startPos).Magnitude
+    local moveSpeed = speed or 16 
+    local duration = distance / moveSpeed
+    local startTime = tick()
+    
+    while tick() - startTime < duration and shouldContinue(value) do
+        task.wait(0)
+        if not Character or not HumanoidRootPart then break end
+        
+        local alpha = math.min((tick() - startTime) / duration, 1)
+        HumanoidRootPart.CFrame = CFrame.new(startPos:Lerp(destination, alpha))
+        
+        -- إيقاف الفيزياء
+        for _, part in ipairs(Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.AssemblyLinearVelocity = Vector3.zero
+                part.AssemblyAngularVelocity = Vector3.zero
+            end
+        end
+    end
+    
+    Running = false
+    CurrentDestination = nil
+    print("✅ تم التليفورت بنجاح!")
     return true
 end
 
 -- ===================== وظائف الصيد =====================
+
+-- جلب أقرب مكان للصيد
 local function GetNearestFishingSpot()
-    if not LocalPlayer.Character then return nil end
-    
-    local HumanoidRootPart = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not HumanoidRootPart then return nil end
+    if not Character or not HumanoidRootPart then return nil end
     
     local nearest = nil
     local shortestDistance = math.huge
@@ -168,21 +226,46 @@ local function GetNearestFishingSpot()
     return nearest, shortestDistance
 end
 
+-- بدء الصيد
 local function StartFishing()
     print("🎣 بدء الصيد...")
-    -- هنا ضع كود الصيد الخاص باللعبة
-    -- مثال: محاكاة الصيد
-    task.wait(3)
-    print("🐟 تم صيد سمكة!")
-    return true
+    
+    -- محاكاة الصيد (عدل هذا حسب لعبتك)
+    local success = false
+    local attempts = 0
+    
+    while attempts < 3 and FishEnabled do
+        attempts = attempts + 1
+        print("🔄 محاولة الصيد رقم " .. attempts)
+        
+        -- هنا ضع كود الصيد الخاص باللعبة
+        -- مثال: الضغط على زر الصيد
+        -- game:GetService("VirtualInputManager"):SendKeyEvent(true, "E", false, game)
+        -- task.wait(0.1)
+        -- game:GetService("VirtualInputManager"):SendKeyEvent(false, "E", false, game)
+        
+        -- محاكاة نجاح الصيد
+        task.wait(2)
+        success = true
+        break
+    end
+    
+    if success then
+        print("🐟 تم صيد سمكة!")
+        return true
+    else
+        print("❌ فشل الصيد")
+        return false
+    end
 end
 
 -- ===================== حلقة الصيد الرئيسية =====================
+
 local function AutoFishLoop()
     print("🔄 بدء حلقة الصيد التلقائي")
     
     while FishEnabled do
-        if not ShouldContinue() then
+        if not shouldContinue() then
             print("⏹️ إيقاف الحلقة - الشخصية غير موجودة")
             break
         end
@@ -198,10 +281,18 @@ local function AutoFishLoop()
         
         print("📍 أقرب مكان صيد على بعد: " .. math.floor(distance) .. " متر")
         
-        -- إذا كنا بعيدين عن مكان الصيد
+        -- إذا كنا بعيدين عن مكان الصيد (أكثر من 10 متر)
         if distance > 10 then
             print("🚶 التوجه إلى مكان الصيد...")
-            local reached = WalkTo(targetSpot)
+            
+            -- استخدام نظام المشي الذكي
+            local reached = WalkTo(targetSpot, nil, 20) -- سرعة 20
+            
+            -- إذا فشل المشي، جرب التليفورت
+            if not reached then
+                print("🌀 محاولة التليفورت إلى مكان الصيد...")
+                reached = TeleportToArea(targetSpot, nil, 30)
+            end
             
             if not reached then
                 print("⚠️ فشل الوصول إلى مكان الصيد، إعادة المحاولة...")
@@ -211,7 +302,7 @@ local function AutoFishLoop()
         end
         
         -- إذا كنا في مكان الصيد
-        if ShouldContinue() then
+        if shouldContinue() then
             print("✅ وصلنا إلى مكان الصيد!")
             
             -- بدء الصيد
@@ -262,11 +353,11 @@ Toggle:OnChanged(function(Value)
         })
         
         -- إيقاف الحركة الحالية
-        if LocalPlayer.Character then
-            local Humanoid = LocalPlayer.Character:FindFirstChild("Humanoid")
-            if Humanoid then
-                Humanoid:MoveTo(LocalPlayer.Character.HumanoidRootPart.Position)
-            end
+        StopWalking = true
+        Running = false
+        
+        if Character and Humanoid then
+            Humanoid:MoveTo(HumanoidRootPart.Position)
         end
     end
 end)
@@ -276,8 +367,13 @@ FishTab:AddButton({
     Title = "📍 الذهاب إلى موقع الصيد",
     Description = "التوجه إلى إحداثيات الصيد -78.403, 251.635, 134.083",
     Callback = function()
-        if not LocalPlayer.Character then
+        if not Character or not HumanoidRootPart then
             print("❌ الشخصية غير موجودة")
+            Fluent:Notify({
+                Title = "❌ خطأ",
+                Content = "الشخصية غير موجودة",
+                Duration = 2
+            })
             return
         end
         
@@ -285,7 +381,7 @@ FishTab:AddButton({
         print("🚶 جاري التوجه إلى موقع الصيد...")
         
         spawn(function()
-            local reached = WalkTo(targetSpot)
+            local reached = WalkTo(targetSpot, nil, 25)
             if reached then
                 Fluent:Notify({
                     Title = "📍 تم الوصول",
@@ -293,13 +389,38 @@ FishTab:AddButton({
                     Duration = 2
                 })
             else
-                Fluent:Notify({
-                    Title = "⚠️ فشل الوصول",
-                    Content = "تعذر الوصول إلى موقع الصيد",
-                    Duration = 2
-                })
+                -- محاولة التليفورت إذا فشل المشي
+                print("🌀 محاولة التليفورت...")
+                reached = TeleportToArea(targetSpot, nil, 30)
+                if reached then
+                    Fluent:Notify({
+                        Title = "📍 تم الوصول",
+                        Content = "وصلت إلى موقع الصيد عن طريق التليفورت!",
+                        Duration = 2
+                    })
+                else
+                    Fluent:Notify({
+                        Title = "⚠️ فشل الوصول",
+                        Content = "تعذر الوصول إلى موقع الصيد",
+                        Duration = 2
+                    })
+                end
             end
         end)
+    end
+})
+
+-- ⚡ إضافة شريط التحكم بالسرعة
+FishTab:AddSlider("SpeedSlider", {
+    Title = "⚡ سرعة المشي",
+    Description = "تحديد سرعة المشي أثناء التنقل",
+    Default = 20,
+    Min = 10,
+    Max = 100,
+    Rounding = 1,
+    Callback = function(Value)
+        SetWalkSpeed(Value)
+        print("⚡ تم تغيير السرعة إلى: " .. Value)
     end
 })
 
@@ -310,10 +431,12 @@ local CoordsLabel = FishTab:AddLabel("📍 الإحداثيات الحالية: 
 spawn(function()
     while true do
         task.wait(1)
-        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            local pos = LocalPlayer.Character.HumanoidRootPart.Position
+        if Character and HumanoidRootPart then
+            local pos = HumanoidRootPart.Position
             local roundedPos = string.format("X: %.1f, Y: %.1f, Z: %.1f", pos.X, pos.Y, pos.Z)
             CoordsLabel:SetText("📍 الإحداثيات الحالية: " .. roundedPos)
+        else
+            CoordsLabel:SetText("📍 الإحداثيات الحالية: غير متاحة")
         end
     end
 end)
@@ -326,7 +449,9 @@ spawn(function()
     while true do
         task.wait(0.5)
         if FishEnabled then
-            if CurrentDestination then
+            if Running then
+                StatusLabel:SetText("📊 الحالة: 🚶 جاري التحرك...")
+            elseif CurrentDestination then
                 StatusLabel:SetText("📊 الحالة: 🚶 جاري التوجه إلى مكان الصيد...")
             else
                 StatusLabel:SetText("📊 الحالة: 🎣 جاري الصيد...")
@@ -345,4 +470,5 @@ Fluent:Notify({
 })
 
 print("✅ تم تحميل Auto Fish Pro بنجاح!")
-print("📍 موقع الصيد: -78.403, 251.635, 134.083") 
+print("📍 موقع الصيد: -78.403, 251.635, 134.083")
+print("⚡ السرعة الافتراضية: 20")

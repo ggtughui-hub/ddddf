@@ -422,14 +422,15 @@ local Config = {
 	EnabledATMViewer = false,
 	LastVehicleTeleport = 0,
 	AntiDied = false,
-	StartFarmJob = false,
-	SelectedJob = "None",
 	MoneyDraw = 250,
 	GoldBox = false,
 	Quick11Rounds = 0,
-	AutoDepositJob = false,
-	DepositThreshold = 500,
-	Respawn = false
+	Respawn = false,
+    -- Fishing Config
+    AutoFarmFishing = false,
+    FishingRod = "Smart Select",
+    FishingWormtec = "Smart Select",
+    FishingBaitAmount = 1
 }
 
 local function c()
@@ -443,8 +444,6 @@ local func = {}
 local function distTo(v3)
 	return (v3 - RootPart.Position).Magnitude
 end
-
-local function JobNow() return Client:GetAttribute('Job') end
 
 local function CheckingIsProgess()
 	local p = PlayerGui:FindFirstChild('ProgressBar')
@@ -492,136 +491,22 @@ local function FindItem(name)
 	return {t ~= nil, t}
 end
 
-local function AutoDepositMoney()
-	local money = tonumber(PlayerGui.TopRightHud.Holder.Frame.MoneyTextLabel.Text:match('%$(%d+)')) or 0
-	if money > 0 then
-		Net.get("transfer_funds", "hand", "bank", money)
-		task.wait(0.3)
-	end
-end
-
-local StateController = {
-	JobSystemActive = false,
-	JobCoroutine = nil,
-	LastDepositTime = 0 -- track deposit cooldown
-}
-
-function StateController:StopJob()
-	self.JobSystemActive = false
-	Config.StartFarmJob = false
-	if self.JobCoroutine then
-		local s = coroutine.status(self.JobCoroutine)
-		if s == "running" or s == "suspended" then pcall(task.cancel, self.JobCoroutine) end
-		self.JobCoroutine = nil
-	end
-	Sf:ForceStop()
-	ClearPathLines()
-end
-
-function StateController:StartJob()
-	if self.JobSystemActive then return end
-	self.JobSystemActive = true
-	Config.StartFarmJob = true
-	if not self.JobCoroutine or coroutine.status(self.JobCoroutine) == "dead" then
-		self.JobCoroutine = task.spawn(function()
-			if func['StartFarmJob'] then func['StartFarmJob']() end
-		end)
-	end
-end
-
-local JANITOR_ATM_CFRAME = CFrame.new(179.275848, 255.290543, -247.853378, -0.875533223, -2.48366234e-08, -0.483157963, 5.75585635e-10, 1, -5.24477919e-08, 0.483157963, -4.61978829e-08, -0.875533223)
-
-local LOCKED_ATM_MAP = {
-	["Janitor"] = JANITOR_ATM_CFRAME,
-}
-
-local function GetDepositATMPos()
-	if Config.AutoDepositJob then
-		local cf = LOCKED_ATM_MAP[Config.SelectedJob]
-		if cf then return cf.Position end
-	end
-	local shortestDist, atmPos = math.huge, nil
-	for _, atm in ipairs(GetAllATM()) do
-		local pos = atm.PrimaryPart and atm.PrimaryPart.Position
-		if not pos then
-			for _, part in ipairs(atm:GetDescendants()) do
-				if part:IsA("BasePart") then pos = part.Position break end
-			end
-		end
-		if pos then
-			local d = distTo(pos)
-			if d < shortestDist then shortestDist = d atmPos = pos end
-		end
-	end
-	return atmPos
-end
-
-local function CheckAndDeposit()
-	if not Config.AutoDepositJob then return end
-	local handMoney = Sf:GetMoney()
-	if handMoney < Config.DepositThreshold then return end
-	
-	-- cooldown 30 วินาที (ไม่งั้นมันจะ spam deposit)
-	if tick() - StateController.LastDepositTime < 30 then return end
-	
-	print("[Deposit] Hand: $" .. handMoney .. " → going to ATM")
-	
-	local atmPos = GetDepositATMPos()
-	
-	if atmPos then
-		-- teleport ไปจน dist <= 8
-		local timeout = tick() + 15
-		while distTo(atmPos) > 8 and tick() < timeout and Config.StartFarmJob do
-			Sf:Teleport(atmPos, Config.StartFarmJob)
-			task.wait(0.5)
-		end
-		
-		-- deposit
-		local amt = Sf:GetMoney()
-		if amt > 0 then
-			print("[Deposit] Transferring $" .. amt)
-			Net.get("transfer_funds", "hand", "bank", amt)
-			task.wait(0.5)
-			StateController.LastDepositTime = tick()
-		end
-	end
-end
-
 local function FindBestTool(jobType)
-	if jobType == "Janitor" then
-		for _, toolName in ipairs({"Silver Mop","Gold Mop","Diamond Mop","Bronze Mop","Mop"}) do
-			if Backpack:FindFirstChild(toolName) or Character:FindFirstChild(toolName) then return toolName end
-		end
-		return "Mop"
-	end
-	return nil
+    -- Removed job logic, kept only for potential future, but returning nil
+    return nil
 end
 
--- Setup Pathfinding Modifiers
-do
-	if not c().PathfindingModifierCreater then
-		for _, v in pairs(workspace:GetDescendants()) do
-			if v.Name == "DoorSystem" or v.Name == "BasementDoor" then
-				for _, x in ipairs(v:GetDescendants()) do
-					if x:IsA('BasePart') then
-						x.CanCollide = false
-						if not x:FindFirstChildOfClass("PathfindingModifier") then
-							local modifier = Instance.new("PathfindingModifier")
-							modifier.Label = "DoorArea"
-							modifier.PassThrough = true
-							modifier.Parent = x
-						end
-					end
-				end
-			end
-			if v.Name == "VehicleBlockers" then
-				v:Destroy()
-			end
+local function GetAllATM()
+	local all = {}
+	for _, atm in pairs(workspace.Map.Props.ATMs:GetChildren()) do
+		if atm.Name == "ATM" and atm:IsA("Model") then
+			table.insert(all, atm)
 		end
-		
-		c().PathfindingModifierCreater = true
 	end
+	return all
 end
+
+function ClearPathLines() end
 
 -- Helper Functions
 function Sf:dist(Objective)
@@ -865,32 +750,6 @@ function Sf:ATMMoney()
 	end
 	return 0
 end
-
--- เพิ่มฟังก์ชัน GetAllATM
-local function GetAllATM()
-	local all = {}
-	for _, atm in pairs(workspace.Map.Props.ATMs:GetChildren()) do
-		if atm.Name == "ATM" and atm:IsA("Model") then
-			table.insert(all, atm)
-		end
-	end
-	return all
-end
-
-local function GetJanitorLockedATMModel()
-	local cf = LOCKED_ATM_MAP[Config.SelectedJob]
-	if not cf then return nil end
-	local target = cf.Position
-	for _, atm in ipairs(GetAllATM()) do
-		local pos = atm.PrimaryPart and atm.PrimaryPart.Position
-		if pos and (pos - target).Magnitude < 5 then
-			return atm
-		end
-	end
-	return nil
-end
-
-function ClearPathLines() end
 
 function Sf:Teleport(destination, value, t, speed)
 	c().StopWalking = false
@@ -1597,212 +1456,6 @@ func['AutoFarmATM'] = function()
 	Sf:ForceStop()
 end
 
-task.spawn(function()
-	while task.wait(1) do
-		if not Config.AutoDepositJob then continue end
-		if not Config.StartFarmJob then continue end
-		if StateController.IsDepositing then continue end
-
-		local handMoney = Sf:GetMoney()
-		if handMoney < Config.DepositThreshold then continue end
-
-		-- หยุด job ชั่วคราว
-		StateController.IsDepositing = true
-		Sf:ForceStop()
-		task.wait(0.3)
-
-		-- เช็คว่า ATM พร้อมรับ deposit หรือยัง (เฉพาะ Janitor)
-		if Config.AutoDepositJob and LOCKED_ATM_MAP[Config.SelectedJob] then
-			local atmModel = GetJanitorLockedATMModel()
-			if atmModel and not GetAtmIsNotHackedJob(atmModel) then
-				-- ATM ยัง hacked อยู่ → กลับไปทำงานรอก่อน
-				StateController.IsDepositing = false
-				if not StateController.JobSystemActive then
-					StateController:StartJob()
-				end
-				continue
-			end
-		end
-
-		-- หา ATM ที่ใกล้ที่สุด
-		local atmPos = GetDepositATMPos()
-
-		if atmPos then
-			-- teleport ไปจน dist <= 5 พร้อมเช็คว่า ATM ถูก hack กลางทางไหม
-			local timeout = tick() + 10
-			local atmHackedMidway = false
-			while distTo(atmPos) > 5 and tick() < timeout do
-				if Config.AutoDepositJob and LOCKED_ATM_MAP[Config.SelectedJob] then
-					local atmModel = GetJanitorLockedATMModel()
-					if atmModel and not GetAtmIsNotHackedJob(atmModel) then
-						atmHackedMidway = true
-						break
-					end
-				end
-				Sf:Teleport(atmPos, true)
-				task.wait(0.3)
-			end
-
-			if atmHackedMidway then
-				-- ATM โดน hack กลางทาง → กลับไปทำงานรอก่อน
-				StateController.IsDepositing = false
-				if not StateController.JobSystemActive then
-					StateController:StartJob()
-				end
-				continue
-			end
-
-			-- deposit
-			local amt = Sf:GetMoney()
-			if amt > 0 then
-				Net.get("transfer_funds", "hand", "bank", amt)
-				task.wait(0.5)
-			end
-		end
-
-		-- resume job
-		StateController.IsDepositing = false
-		if not StateController.JobSystemActive then
-			StateController:StartJob()
-		end
-	end
-end)
-
-func['StartFarmJob'] = function()
-	while task.wait(0.2) do
-		if not Config.StartFarmJob or not StateController.JobSystemActive then
-			Sf:ForceStop()
-			break
-		end
-		
-		-- ⚡ เช็ค deposit ก่อนทำงานของ job
-		CheckAndDeposit()
-		
-		local Jobs = Config.SelectedJob
-		if Jobs == "None" then
-			task.wait(1)
-			continue
-		end
-		
-		-- ========================================
-		-- JANITOR JOB
-		-- ========================================
-		if Jobs == "Janitor" then
-			if JobNow() ~= "janitor" then
-				local dist = distTo(Vector3.new(110, 255, -309))
-				if dist < 10 then
-					Sf:Ac("apply_for_job", workspace:WaitForChild("BurgePlaceBeacon"))
-				else
-					Sf:Teleport(Vector3.new(110.824829, 255.190384, -309.609131), Config.StartFarmJob)
-				end
-			else
-				-- ⚡ เช็คว่าควร deposit ไหม (แทนที่จะไปหา ATM ในงาน)
-				local handMoney = Sf:GetMoney()
-				if Config.AutoDepositJob and handMoney >= Config.DepositThreshold then
-					-- ไม่ต้องไปหา ATM แบบเก่า — ให้ CheckAndDeposit() จัดการ
-					-- skip puddle cleaning cycle นี้
-					task.wait(1)
-				else
-					-- ทำงานปกติ
-					if Character:FindFirstChild(FindBestTool('Janitor')) then
-						local Level = Sf:GetSkill("Janitor")
-						local PuddlesFolder = workspace.Map.Tiles.BurgerPlaceTile.BurgerPlace.Interior.Puddles
-						local PuddleNear = GetNearThing(PuddlesFolder, "Puddle", function(puddle)
-							local Large = puddle.Name == "LargePuddle"
-							local OilPuddle = puddle.Name == "OilPuddle"
-							local Toxic = puddle.Name == "ToxicPuddle"
-							local Nasty = puddle.Name == "NastyPuddle"
-							return puddle:IsA("BasePart") 
-								and puddle.Size.Magnitude > 0.001 
-								and puddle.Transparency < 1
-								and (not Large or Level >= 5)
-								and (not OilPuddle or Level >= 35)
-								and (not Toxic or Level >= 50)
-								and (not Nasty or Level >= 35)
-						end)
-						if not CheckingIsProgess() and PuddleNear then
-							Sf:Teleport(PuddleNear.Position, Config.StartFarmJob)
-							RootPart:PivotTo(CFrame.new(RootPart.CFrame.Position) * CFrame.Angles(0, math.rad(160), 0))
-						end
-					else
-						if FindItem(FindBestTool('Janitor'))[1] then
-							Humanoid:EquipTool(FindItem(FindBestTool('Janitor'))[2])
-						end
-					end
-				end
-			end
-			
-		-- ========================================
-		-- QUICK-11 JOB
-		-- ========================================
-		elseif Jobs == "Quick-11" then
-			if JobNow() ~= "shelf_stocker" then
-				local dist = distTo(Vector3.new(133.074203, 255.315063, 208.3764049))
-				if dist < 10 then
-					Sf:Ac("apply_for_job", workspace.Map.Tiles.GasStationTile.Quick11.Interior.Quick11Beacon)
-				elseif dist > 10 and dist < 500 then
-					Sf:Teleport(Vector3.new(133.074203, 255.315063, 208.3764049), Config.StartFarmJob)
-				else
-					if Humanoid.Health > 0 then
-						if not Client:GetAttribute('IsInCombat') then
-							task.wait(2)
-							Sf:Ac('request_respawn')
-						end
-					end
-				end
-			else
-				local handMoney = Sf:GetMoney()
-				
-				-- ⚡ เช็คว่าควร deposit ไหม (แทนที่จะไปหา ATM ในงาน)
-				if Config.AutoDepositJob and handMoney >= Config.DepositThreshold then
-					task.wait(1)
-				else
-					local boxJob = workspace.Map.Tiles.GasStationTile.Quick11.Interior.ShelfStockingJob
-					local boxTool = Backpack:FindFirstChild("BoxTool") or Character:FindFirstChild("BoxTool")
-					
-					if not boxTool then
-						local normalBoxPos = Vector3.new(133.074203, 255.315063, 208.376404)
-						local goldenBoxPos = Vector3.new(129.082565, 237.444138, 210.597443)
-						if FindItem('Fists')[2] then Humanoid:UnequipTools() end
-						
-						if boxJob.GoldenBox.BillboardGui.Frame.StockLeft.Text ~= "Stock: 0/5 (x25)" and Config.GoldBox then
-							if distTo(goldenBoxPos) < 5 then
-								for i = 1, 5 do
-									fireproximityprompt(boxJob.GoldenBox:FindFirstChild('ProximityPrompt'))
-								end
-							end
-							Sf:Teleport(goldenBoxPos, Config.StartFarmJob)
-						else
-							if distTo(normalBoxPos) < 5 then
-								for i = 1, 5 do
-									fireproximityprompt(boxJob.NormalBox:FindFirstChild('ProximityPrompt'))
-								end
-							end
-							Sf:Teleport(normalBoxPos, Config.StartFarmJob)
-						end
-					else
-						local shelves = boxJob.Shelves
-						if not Character:FindFirstChild("BoxTool") then
-							Humanoid:EquipTool(boxTool)
-						end
-						repeat task.wait(0.2)
-							Getunpack(shelves, function(v)
-								if v:FindFirstChild("Attachment") then
-									Sf:Teleport(v.Position, Config.StartFarmJob)
-									RootPart:PivotTo(CFrame.new(RootPart.CFrame.Position) * CFrame.Angles(0, math.rad(160), 0))
-								end
-							end)
-						until not Character:FindFirstChild("BoxTool") or not Config.StartFarmJob
-					end
-				end
-			end
-		end
-	end
-	
-	StateController.JobSystemActive = false
-	Sf:ForceStop()
-end
-
 -- ATM Viewer ESP
 local ATMViewerEnabled = false
 
@@ -2006,132 +1659,6 @@ UserInputService.InputBegan:Connect(function(input, gp)
     end
 end)
 
-local JobTab = Window:Tab({
-	Title = 'Job Farm',
-	Icon = 'briefcase',
-})
-
-JobTab:Section({ Title = 'information:' })
-
-local Players = game:GetService("Players")
-local Client = Players.LocalPlayer
-local PlayerGui = Client:WaitForChild("PlayerGui")
-
--- แก้ไขชื่อตัวแปรให้ตรงกัน (ใช้ JobTab)
-local BankBalance = JobTab:Button({
-    Title = "🏦 Bank Balance",
-    Desc = "N/A"
-})
-
-local HandBalance = JobTab:Button({
-    Title = "💸 Hand Balance",
-    Desc = "N/A"
-})
-
--- ฟังก์ชันดึงเงินในมือ (ลบคอมมาออกก่อนแปลงเป็นตัวเลข)
-local function HandMoney()
-    local hudLabel = PlayerGui:FindFirstChild("TopRightHud") 
-        and PlayerGui.TopRightHud:FindFirstChild("Holder") 
-        and PlayerGui.TopRightHud.Holder:FindFirstChild("Frame") 
-        and PlayerGui.TopRightHud.Holder.Frame:FindFirstChild("MoneyTextLabel")
-
-    if hudLabel then
-        local cleanText = hudLabel.Text:gsub(",", "") -- ลบคอมมาออก เช่น 1,000 -> 1000
-        return tonumber(cleanText:match("%$(%d+)"))
-    end
-    return 0
-end
-
--- สร้างตัวแปรไว้เก็บตำแหน่งของ TextLabel ธนาคาร เพื่อจะได้ไม่ต้องหาใหม่ทุกๆ 0.2 วินาที
-local CachedBankLabel = nil
-
-local function ATMMoney()
-    if CachedBankLabel and CachedBankLabel:IsDescendantOf(PlayerGui) then
-        local cleanText = CachedBankLabel.Text:gsub(",", "")
-        return tonumber(cleanText:match("%$(%d+)")) or 0
-    end
-
-    for _, v in ipairs(PlayerGui:GetDescendants()) do
-        if v:IsA("TextLabel") and string.find(v.Text, "Bank Balance") then
-            CachedBankLabel = v
-            local cleanText = v.Text:gsub(",", "")
-            return tonumber(cleanText:match("%$(%d+)")) or 0
-        end
-    end
-    return 0
-end
-
-task.spawn(function()
-    while task.wait(0.2) do
-        local bank = ATMMoney() or 0
-        local hand = HandMoney() or 0
-        
-        -- ใช้ string.format เพื่อใส่คอมมาให้สวยงามในหน้าต่างเมนูของคุณ (ใส่หรือไม่ใส่ก็ได้)
-        BankBalance:SetDesc('<b><font color="#FFFFFF">$' .. string.format("%d", bank) .. "</font></b>")
-        HandBalance:SetDesc('<b><font color="#FFFFFF">$' .. string.format("%d", hand) .. "</font></b>")
-    end
-end)
-
-JobTab:Section({ Title = 'Auto Job:' })
-
-JobTab:Toggle({
-	Title = "Auto Farm Job",
-	Icon = "check",
-	Type = "Checkbox",
-	Value = false,
-	Callback = function(Value)
-		Config.StartFarmJob = Value
-		if Value then
-			StateController:StartJob()
-		else
-			StateController:StopJob()
-		end
-	end,
-})
-
-JobTab:Dropdown({
-	Title = "Select Job",
-	Values = {"None", "Janitor", "Quick-11"},
-	Value = "None",
-	Callback = function(Value)
-		Config.SelectedJob = Value
-		if Value == "None" then StateController:StopJob() end
-	end,
-})
-
-JobTab:Section({ Title = 'Settings:' })
-
-JobTab:Toggle({
-	Title = "Gold Box (Quick-11)",
-	Icon = "check",
-	Type = "Checkbox",
-	Value = false,
-	Callback = function(Value)
-		Config.GoldBox = Value
-	end,
-})
-
-JobTab:Divider({})
-
-JobTab:Toggle({
-	Title = "Auto Deposit",
-	Icon = "check",
-	Type = "Checkbox",
-	Value = false,
-	Callback = function(Value)
-		Config.AutoDepositJob = Value
-	end,
-})
-
-JobTab:Slider({
-	Title = "Auto Deposit Threshold",
-	Step = 50,
-	Value = { Min = 100, Max = 5000, Default = 500 },
-	Callback = function(value)
-		Config.DepositThreshold = value
-	end,
-})
-
 local FarmTab = Window:Tab({
 	Title = 'ATM Farm',
 	Icon = 'car',
@@ -2179,18 +1706,6 @@ FarmTab:Dropdown({
 	end,
 })
 
-FarmTab:Dropdown({
-	Title = "Vehicle Type",
-	Values = {
-		"Bike",
-		"Car"
-	},
-	Value = "Bike",
-	Callback = function(Value)
-		Config.VechineType = Value
-	end,
-})
-
 FarmTab:Slider({
 	Title = "Swiper Limit",
 	Step = 1,
@@ -2201,19 +1716,6 @@ FarmTab:Slider({
 	},
 	Callback = function(Value)
 		Config.SwiperLimit = Value
-	end,
-})
-
-FarmTab:Slider({
-	Title = "Vehicle Speed",
-	Step = 1,
-	Value = {
-		Min = 10,
-		Max = 350,
-		Default = 60
-	},
-	Callback = function(Value)
-		Config.InstantVechineSpeed = Value
 	end,
 })
 
@@ -2502,11 +2004,6 @@ local FishingBaits = {
     {Name = "WormtecRegular", Level = 1, Price = 20}
 }
 
-Config.AutoFarmFishing = false
-Config.FishingRod = "Smart Select"
-Config.FishingWormtec = "Smart Select"
-Config.FishingBaitAmount = 1
-
 FishingTab:Section({ Title = "Auto Farm:" })
 
 FishingTab:Toggle({
@@ -2785,6 +2282,36 @@ FishingTab:Slider({
     },
     Callback = function(Value)
         Config.FishingBaitAmount = Value
+    end,
+})
+
+-- ============================================
+-- 🚗 MOVED VEHICLE SETTINGS TO FISHING TAB
+-- ============================================
+FishingTab:Section({ Title = "Vehicle Settings (For Fishing & ATM)" })
+
+FishingTab:Dropdown({
+    Title = "Vehicle Type",
+    Values = {
+        "Bike",
+        "Car"
+    },
+    Value = "Bike",
+    Callback = function(Value)
+        Config.VechineType = Value
+    end,
+})
+
+FishingTab:Slider({
+    Title = "Vehicle Speed",
+    Step = 1,
+    Value = {
+        Min = 10,
+        Max = 350,
+        Default = 60
+    },
+    Callback = function(Value)
+        Config.InstantVechineSpeed = Value
     end,
 })
 

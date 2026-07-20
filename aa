@@ -574,157 +574,171 @@ function Sf:RepairVehicle(uid)
 	return true
 end
 
+-- ========================================
+-- دالة القيادة (معدلة لترجع قيمة نجاح)
+-- ========================================
 function Sf:Drive(model, destination, value, t)
-	if not model or not model.PrimaryPart then
-		c()['Running'] = false
-		return
-	end
-	c()["StopWalking"] = false
-	local path = PathfindingService:CreatePath({
-		AgentRadius = c().VechineType == "car" and 6 or 3.5,
-		AgentHeight = 8,
-		AgentCanJump = true,
-		AgentMaxSlope = 50,
-		AgentCanClimb = false,
-		WaypointSpacing = 8,
-		Costs = {
-			BlockedNode = 100,
-			Cars = 1,
-			Water = math.huge,
-			DoorArea = 1
-		}
-	})
-	
-	local success = pcall(function()
-		path:ComputeAsync(model.PrimaryPart.Position, destination)
-	end)
-	
-	if not success or path.Status ~= Enum.PathStatus.Success then
-		c()['Running'] = false
-		return
-	end
-	
-	local waypoints = path:GetWaypoints()
-	
-	for i, wp in pairs(waypoints) do
-		if not model or not model.PrimaryPart then
-			c()['Running'] = false
-			return
-		end
-		
-		local startPos = model:GetPivot().Position
-		local heightOffset = 2
-		if wp.Action == Enum.PathWaypointAction.Jump then
-			heightOffset = 8
-		end
-		
-		local goalPos = wp.Position + Vector3.new(0, heightOffset, 0)
-		local dir = (goalPos - startPos).Unit
-		local dist = (goalPos - startPos).Magnitude
-		local movedDist = 0
-		local speed = c().InstantVechineSpeed or 55
-		local startTime = tick()
-		
-		while movedDist < dist and value do
-			task.wait(0)
-			if not model or not model.PrimaryPart then
-				c()['Running'] = false
-				return
-			end
-			c()['Running'] = true
-			
-			if not value then
-				c()['Running'] = false
-				break
-			end
-			
-			if not Humanoid.Sit then
-				c()['Running'] = false
-				return self:Drive(model, destination, value, t)
-			end
-			
-			local dt = tick() - startTime
-			movedDist = math.min(dt * speed, dist)
-			local newPos = startPos + dir * movedDist
-			
-			local lookDirection = dir
-			if i < #waypoints then
-				local nextWp = waypoints[i + 1]
-				lookDirection = (nextWp.Position - wp.Position).Unit
-			end
-			
-			local Rotation = CFrame.new(newPos) * CFrame.Angles(0, math.atan2(lookDirection.X, lookDirection.Z), 0)
-			model:PivotTo(Rotation)
-			
-			for _, part in ipairs(model:GetDescendants()) do
-				if part:IsA("BasePart") then
-					part.AssemblyLinearVelocity = Vector3.zero
-					part.AssemblyAngularVelocity = Vector3.zero
-				end
-			end
-		end
-		
-		c()['Running'] = false
-		if not value then
-			break
-		end
-	end
-	c()['Running'] = false
+    if not model or not model.PrimaryPart then
+        c()['Running'] = false
+        return false
+    end
+
+    -- إذا كانت المسافة قصيرة جداً، ننقل المركبة مباشرة
+    local distToDest = (model.PrimaryPart.Position - destination).Magnitude
+    if distToDest < 10 then
+        model:PivotTo(CFrame.new(destination))
+        return true
+    end
+
+    c()["StopWalking"] = false
+    local path = PathfindingService:CreatePath({
+        AgentRadius = c().VechineType == "car" and 6 or 3.5,
+        AgentHeight = 8,
+        AgentCanJump = true,
+        AgentMaxSlope = 50,
+        AgentCanClimb = false,
+        WaypointSpacing = 8,
+        Costs = {
+            BlockedNode = 100,
+            Cars = 1,
+            Water = math.huge,
+            DoorArea = 1
+        }
+    })
+    
+    local success = pcall(function()
+        path:ComputeAsync(model.PrimaryPart.Position, destination)
+    end)
+    
+    if not success or path.Status ~= Enum.PathStatus.Success then
+        c()['Running'] = false
+        return false
+    end
+    
+    local waypoints = path:GetWaypoints()
+    
+    for i, wp in pairs(waypoints) do
+        if not model or not model.PrimaryPart then
+            c()['Running'] = false
+            return false
+        end
+        
+        local startPos = model:GetPivot().Position
+        local heightOffset = 2
+        if wp.Action == Enum.PathWaypointAction.Jump then
+            heightOffset = 8
+        end
+        
+        local goalPos = wp.Position + Vector3.new(0, heightOffset, 0)
+        local dir = (goalPos - startPos).Unit
+        local dist = (goalPos - startPos).Magnitude
+        local movedDist = 0
+        local speed = c().InstantVechineSpeed or 55
+        local startTime = tick()
+        
+        while movedDist < dist and value do
+            task.wait(0)
+            if not model or not model.PrimaryPart then
+                c()['Running'] = false
+                return false
+            end
+            c()['Running'] = true
+            
+            if not value then
+                c()['Running'] = false
+                return false
+            end
+            
+            if not Humanoid.Sit then
+                c()['Running'] = false
+                -- حاول الركوب مجدداً
+                return self:Drive(model, destination, value, t)
+            end
+            
+            local dt = tick() - startTime
+            movedDist = math.min(dt * speed, dist)
+            local newPos = startPos + dir * movedDist
+            
+            local lookDirection = dir
+            if i < #waypoints then
+                local nextWp = waypoints[i + 1]
+                lookDirection = (nextWp.Position - wp.Position).Unit
+            end
+            
+            local Rotation = CFrame.new(newPos) * CFrame.Angles(0, math.atan2(lookDirection.X, lookDirection.Z), 0)
+            model:PivotTo(Rotation)
+            
+            for _, part in ipairs(model:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.AssemblyLinearVelocity = Vector3.zero
+                    part.AssemblyAngularVelocity = Vector3.zero
+                end
+            end
+        end
+        
+        c()['Running'] = false
+        if not value then
+            return false
+        end
+    end
+    c()['Running'] = false
+    return true
 end
 
 -- ========================================
--- دالة الحصول على المركبة أو استدعاؤها
+-- دالة الحصول على المركبة أو استدعاؤها (معدلة)
 -- ========================================
 function Sf:GetOrSpawnVehicle()
     local vehicleName = Sf:GetCarFromType(c().VechineType)
+    
+    -- إذا لم يكن لديه أي مركبة في المخزون، نشتري صندوق دراجة
     if not vehicleName then
         Sf:BuyBikeCrate()
-        task.wait(1)
-        return nil
-    end
-
-    local existingVehicle = nil
-    for _, vehicle in ipairs(workspace.Vehicles:GetChildren()) do
-        if vehicle:GetAttribute('OwnerUserId') == UserId then
-            existingVehicle = vehicle
-            break
+        task.wait(1) -- ننتظر حتى تظهر الدراجة في المخزون
+        -- بعد الشراء، نحاول الحصول على اسم الدراجة (ستكون "BMX" غالباً)
+        vehicleName = Sf:GetCarFromType("Bike")
+        if not vehicleName then
+            return nil -- فشل الشراء
         end
     end
 
-    if not existingVehicle then
-        local Checker = Sf:GetInfo(vehicleName)
-        if Checker[2] and not Checker[4] and not Checker[5] then
-            Net.get("toggle_equip_item", tostring(Checker[3]))
-            task.wait(0.1)
-        elseif Checker[5] then
-            task.wait(0.5)
-            return nil
-        elseif not Checker[2] then
-            task.wait(0.2)
-            return nil
-        end
-    end
-
-    -- البحث مرة أخرى بعد التجهيز
+    -- البحث عن مركبة موجودة في العالم
     for _, vehicle in ipairs(workspace.Vehicles:GetChildren()) do
         if vehicle:GetAttribute('OwnerUserId') == UserId then
             return vehicle
         end
     end
+
+    -- إذا لم توجد، نحاول تجهيزها من الحقيبة
+    local Checker = Sf:GetInfo(vehicleName)
+    if Checker[2] and not Checker[4] and not Checker[5] then
+        Net.get("toggle_equip_item", tostring(Checker[3]))
+        task.wait(0.5) -- انتظر قليلاً لتظهر المركبة
+        
+        -- ننتظر حتى تظهر المركبة في العالم (بحد أقصى 5 ثوانٍ)
+        local timeout = tick() + 5
+        while tick() < timeout do
+            for _, vehicle in ipairs(workspace.Vehicles:GetChildren()) do
+                if vehicle:GetAttribute('OwnerUserId') == UserId then
+                    return vehicle
+                end
+            end
+            task.wait(0.2)
+        end
+    end
+    
     return nil
 end
 
 -- ========================================
--- دالة التنقل الذكية (تحاول استخدام المركبة دائماً)
+-- دالة التنقل الذكية (معدلة لتراجع إلى Teleport)
 -- ========================================
 function Sf:NavigateTo(destination, value)
     -- محاولة استخدام المركبة أولاً
     local vehicle = Sf:GetOrSpawnVehicle()
     if vehicle and vehicle.PrimaryPart then
-        -- قفل المركبة
         Sf:Ac("lock_vehicle", vehicle, true)
         
-        -- ركوب المركبة إذا لم يكن جالساً
         if not Humanoid.Sit then
             local currentTime = tick()
             if currentTime - c().LastVehicleTeleport >= 0.5 then
@@ -750,7 +764,7 @@ function Sf:NavigateTo(destination, value)
         end
 
         if Humanoid.Sit then
-            -- إصلاح تلقائي قبل القيادة
+            -- إصلاح تلقائي
             if c().AutoRepairVehicle then
                 local vehicleName = Sf:GetCarFromType(c().VechineType) or "BMX"
                 local currentHP, maxHP, vehicleUID = Sf:GetVehicleHealth(vehicleName)
@@ -780,8 +794,13 @@ function Sf:NavigateTo(destination, value)
             end
             
             if Humanoid.Sit then
-                Sf:Drive(vehicle, destination, value)
-                return true
+                local driveSuccess = Sf:Drive(vehicle, destination, value)
+                if driveSuccess then
+                    return true
+                end
+                -- إذا فشلت القيادة، ننزل من المركبة ونستخدم التليفورت
+                Net.get("exit_seat")
+                task.wait(0.2)
             end
         end
     end
@@ -1470,7 +1489,6 @@ FishingTab:Toggle({
                                 Sf:NavigateTo(atmPos, Config.AutoFarmFishing)
                                 reached = true
                                 
-                                -- 🔥 التعديل هنا: رفع مسافة السحب إلى 60
                                 if (targetAtm and GetAtmIsNotHackedJob(targetAtm)) or not targetAtm then
                                     local hrp = Character:FindFirstChild("HumanoidRootPart")
                                     if hrp and (hrp.Position - atmPos).Magnitude < 60 then
@@ -1491,7 +1509,7 @@ FishingTab:Toggle({
                         Sf:NavigateTo(shopPos, Config.AutoFarmFishing)
                         task.wait(0.01)
                         
-                        -- 🔥 التأكد من الوصول إلى المتجر والنزول من السيارة إذا لزم الأمر
+                        -- التأكد من الوصول إلى المتجر
                         local shopTimeout = tick() + 10
                         while (RootPart.Position - shopPos).Magnitude > 15 and tick() < shopTimeout and Config.AutoFarmFishing do
                             Sf:NavigateTo(shopPos, Config.AutoFarmFishing)

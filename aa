@@ -1470,9 +1470,10 @@ FishingTab:Toggle({
                                 Sf:NavigateTo(atmPos, Config.AutoFarmFishing)
                                 reached = true
                                 
+                                -- 🔥 التعديل هنا: رفع مسافة السحب إلى 60
                                 if (targetAtm and GetAtmIsNotHackedJob(targetAtm)) or not targetAtm then
                                     local hrp = Character:FindFirstChild("HumanoidRootPart")
-                                    if hrp and (hrp.Position - atmPos).Magnitude < 25 then
+                                    if hrp and (hrp.Position - atmPos).Magnitude < 60 then
                                         local needed = moneyNeeded - Sf:GetMoney()
                                         if needed > 0 then
                                             Net.get("transfer_funds", "bank", "hand", needed)
@@ -1490,6 +1491,14 @@ FishingTab:Toggle({
                         Sf:NavigateTo(shopPos, Config.AutoFarmFishing)
                         task.wait(0.01)
                         
+                        -- 🔥 التأكد من الوصول إلى المتجر والنزول من السيارة إذا لزم الأمر
+                        local shopTimeout = tick() + 10
+                        while (RootPart.Position - shopPos).Magnitude > 15 and tick() < shopTimeout and Config.AutoFarmFishing do
+                            Sf:NavigateTo(shopPos, Config.AutoFarmFishing)
+                            task.wait(0.5)
+                        end
+                        
+                        -- الشراء
                         if not hasRod then
                             Net.get("purchase_consumable", workspace:WaitForChild("ShopZone_Hardware"), targetRod)
                             task.wait(0.01)

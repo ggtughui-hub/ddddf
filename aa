@@ -427,7 +427,14 @@ local Config = {
 	Quick11Rounds = 0,
 	AutoDepositJob = false,
 	DepositThreshold = 500,
-	Respawn = false
+	Respawn = false,
+	-- Fishing Vehicle Settings
+	FishingVehicleType = "Bike",
+	FishingVehicleSpeed = 60,
+	AutoFarmFishing = false,
+	FishingRod = "Smart Select",
+	FishingWormtec = "Smart Select",
+	FishingBaitAmount = 1
 }
 
 local function c()
@@ -1055,6 +1062,169 @@ function Sf:Drive(model, destination, value, t)
 	end
 	
 	c()['Running'] = false
+end
+
+-- نسخة مخصصة للصيد تستخدم المركبات
+function Sf:DriveFishing(model, destination, value)
+	if not model or not model.PrimaryPart then
+		c()['Running'] = false
+		return
+	end
+	c()["StopWalking"] = false
+	
+	local vehicleType = Config.FishingVehicleType or "Bike"
+	local agentRadius = vehicleType == "car" and 6 or 3.5
+	
+	local path = PathfindingService:CreatePath({
+		AgentRadius = agentRadius,
+		AgentHeight = 8,
+		AgentCanJump = true,
+		AgentMaxSlope = 50,
+		AgentCanClimb = false,
+		WaypointSpacing = 8,
+		Costs = {
+			BlockedNode = 100,
+			Cars = 1,
+			Water = math.huge,
+			DoorArea = 1
+		}
+	})
+	
+	local success = pcall(function()
+		path:ComputeAsync(model.PrimaryPart.Position, destination)
+	end)
+	
+	if not success or path.Status ~= Enum.PathStatus.Success then
+		c()['Running'] = false
+		return
+	end
+	
+	local waypoints = path:GetWaypoints()
+	local speed = Config.FishingVehicleSpeed or 60
+	
+	for i, wp in pairs(waypoints) do
+		if not model or not model.PrimaryPart then
+			c()['Running'] = false
+			return
+		end
+		
+		local startPos = model:GetPivot().Position
+
+		local heightOffset = 2
+		if wp.Action == Enum.PathWaypointAction.Jump then
+			heightOffset = 8
+		end
+		
+		local goalPos = wp.Position + Vector3.new(0, heightOffset, 0)
+		local dir = (goalPos - startPos).Unit
+		local dist = (goalPos - startPos).Magnitude
+		local movedDist = 0
+		local startTime = tick()
+		
+		while movedDist < dist and value do
+			task.wait(0)
+			if not model or not model.PrimaryPart then
+				c()['Running'] = false
+				return
+			end
+			c()['Running'] = true
+			
+			if not value then
+				c()['Running'] = false
+				break
+			end
+			
+			if not Humanoid.Sit then
+				c()['Running'] = false
+				return self:DriveFishing(model, destination, value)
+			end
+			
+			local dt = tick() - startTime
+			movedDist = math.min(dt * speed, dist)
+			local newPos = startPos + dir * movedDist
+			
+			local lookDirection = dir
+			if i < #waypoints then
+				local nextWp = waypoints[i + 1]
+				lookDirection = (nextWp.Position - wp.Position).Unit
+			end
+			
+			local Rotation = CFrame.new(newPos) * CFrame.Angles(0, math.atan2(lookDirection.X, lookDirection.Z), 0)
+			model:PivotTo(Rotation)
+			
+			for _, part in ipairs(model:GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.AssemblyLinearVelocity = Vector3.zero
+					part.AssemblyAngularVelocity = Vector3.zero
+				end
+			end
+		end
+		
+		c()['Running'] = false
+		if not value then
+			break
+		end
+	end
+	
+	c()['Running'] = false
+end
+
+-- دالة جديدة للحصول على مركبة للصيد
+function Sf:GetFishingVehicle()
+	local vehicleType = Config.FishingVehicleType or "Bike"
+	local vehicleName = Sf:GetCarFromType(vehicleType)
+	
+	if not vehicleName then
+		return nil, nil
+	end
+	
+	-- البحث عن مركبة موجودة
+	for _, vehicle in ipairs(workspace.Vehicles:GetChildren()) do
+		if vehicle:GetAttribute('OwnerUserId') == UserId then
+			return vehicle, vehicleName
+		end
+	end
+	
+	-- إذا لم توجد مركبة، نحاول استدعاء واحدة
+	local Checker = Sf:GetInfo(vehicleName)
+	if Checker[2] and not Checker[4] and not Checker[5] then
+		Net.get("toggle_equip_item", tostring(Checker[3]))
+		task.wait(0.1)
+	end
+	
+	return nil, vehicleName
+end
+
+function Sf:EnterVehicle(vehicle)
+	if not vehicle or not vehicle.PrimaryPart then return false end
+	
+	if not Humanoid.Sit then
+		local currentTime = tick()
+		if currentTime - c().LastVehicleTeleport >= 0.5 then
+			local charLook = RootPart.CFrame.LookVector
+			local vehicleRotation = CFrame.new(RootPart.Position + Vector3.new(0, 7, 0)) * CFrame.Angles(0, math.atan2(charLook.X, charLook.Z), 0)
+			vehicle:PivotTo(vehicleRotation)
+			c().LastVehicleTeleport = currentTime
+			task.wait(0)
+		end
+		
+		if vehicle.PrimaryPart then
+			for _, prompt in pairs(vehicle.PrimaryPart:GetDescendants()) do
+				if prompt:IsA('ProximityPrompt') then
+					fireproximityprompt(prompt)
+					task.wait(0)
+				end
+			end
+		end
+	end
+	
+	local waitCount = 0
+	while not Humanoid.Sit and waitCount < 10 do
+		task.wait(0)
+		waitCount = waitCount + 1
+	end
+	
+	return Humanoid.Sit
 end
 
 local SafeHeight = {
@@ -1885,8 +2055,6 @@ UserInputService.InputBegan:Connect(function(input, gp)
     end
 end)
 
--- تم إزالة Job Tab بالكامل لأن الوظائف تم حذفها
-
 local FarmTab = Window:Tab({
 	Title = 'ATM Farm',
 	Icon = 'car',
@@ -2257,11 +2425,6 @@ local FishingBaits = {
     {Name = "WormtecRegular", Level = 1, Price = 20}
 }
 
-Config.AutoFarmFishing = false
-Config.FishingRod = "Smart Select"
-Config.FishingWormtec = "Smart Select"
-Config.FishingBaitAmount = 1
-
 FishingTab:Section({ Title = "Auto Farm:" })
 
 FishingTab:Toggle({
@@ -2331,8 +2494,37 @@ FishingTab:Toggle({
                         end
                     end
                     
+                    -- استخدام المركبات للتنقل في الصيد
                     if hasRod and hasBait then
-                        Sf:Teleport(Vector3.new(184.753616, 254.942337, -751.416321), Config.AutoFarmFishing)
+                        -- الحصول على مركبة للصيد
+                        local vehicle, vehicleName = Sf:GetFishingVehicle()
+                        
+                        -- إذا لم توجد مركبة، نحاول شراء واحدة
+                        if not vehicle and vehicleName then
+                            Sf:BuyBikeCrate()
+                            task.wait(0.5)
+                            vehicle, vehicleName = Sf:GetFishingVehicle()
+                        end
+                        
+                        -- موقع الصيد
+                        local fishingPos = Vector3.new(184.753616, 254.942337, -751.416321)
+                        
+                        -- إذا كانت لدينا مركبة، نستخدمها للتنقل
+                        if vehicle and vehicle.PrimaryPart then
+                            -- الدخول إلى المركبة
+                            if not Humanoid.Sit then
+                                Sf:EnterVehicle(vehicle)
+                            end
+                            
+                            -- القيادة إلى موقع الصيد
+                            if Humanoid.Sit then
+                                Sf:DriveFishing(vehicle, fishingPos, Config.AutoFarmFishing)
+                            end
+                        else
+                            -- إذا لم توجد مركبة، نستخدم المشي
+                            Sf:Teleport(fishingPos, Config.AutoFarmFishing)
+                        end
+                        
                         task.wait(0.01)
                         
                         if rodUid and baitUid then
@@ -2385,7 +2577,7 @@ FishingTab:Toggle({
                             task.wait(0.01)
                         end
                     else
-
+                        -- بيع الأسماك
                         local fishesToSell = {}
                         local currentItems = PlayerGui:FindFirstChild("Items")
                         if currentItems then
@@ -2406,7 +2598,21 @@ FishingTab:Toggle({
                             local sellBeacon = workspace:FindFirstChild("SellFishBeacon")
                             local touchPart = sellBeacon and sellBeacon:FindFirstChild("TouchPart")
                             if touchPart then
-                                Sf:Teleport(touchPart.Position, Config.AutoFarmFishing)
+                                local sellPos = touchPart.Position
+                                
+                                -- استخدام المركبة للذهاب لبيع الأسماك
+                                local vehicle, vehicleName = Sf:GetFishingVehicle()
+                                if vehicle and vehicle.PrimaryPart then
+                                    if not Humanoid.Sit then
+                                        Sf:EnterVehicle(vehicle)
+                                    end
+                                    if Humanoid.Sit then
+                                        Sf:DriveFishing(vehicle, sellPos, Config.AutoFarmFishing)
+                                    end
+                                else
+                                    Sf:Teleport(sellPos, Config.AutoFarmFishing)
+                                end
+                                
                                 task.wait(0.01)
                                 
                                 for _, fUid in ipairs(fishesToSell) do
@@ -2417,6 +2623,7 @@ FishingTab:Toggle({
                             end
                         end
                         
+                        -- شراء الطعم والقضبان
                         local baitAmt = Config.FishingBaitAmount or 1
                         local moneyNeeded = 0
                         if not hasRod then
@@ -2472,7 +2679,18 @@ FishingTab:Toggle({
                                     end
                                 end)
                                 
-                                Sf:Teleport(atmPos, Config.AutoFarmFishing)
+                                -- استخدام المركبة للذهاب إلى الصراف
+                                local vehicle, vehicleName = Sf:GetFishingVehicle()
+                                if vehicle and vehicle.PrimaryPart then
+                                    if not Humanoid.Sit then
+                                        Sf:EnterVehicle(vehicle)
+                                    end
+                                    if Humanoid.Sit then
+                                        Sf:DriveFishing(vehicle, atmPos, Config.AutoFarmFishing)
+                                    end
+                                else
+                                    Sf:Teleport(atmPos, Config.AutoFarmFishing)
+                                end
                                 reached = true
                                 
                                 if (targetAtm and GetAtmIsNotHackedJob(targetAtm)) or not targetAtm then
@@ -2491,7 +2709,20 @@ FishingTab:Toggle({
                         end
                         
                         local shopPos = Vector3.new(-136.406662, 254.851074, 153.555588)
-                        Sf:Teleport(shopPos, Config.AutoFarmFishing)
+                        
+                        -- استخدام المركبة للذهاب إلى المتجر
+                        local vehicle, vehicleName = Sf:GetFishingVehicle()
+                        if vehicle and vehicle.PrimaryPart then
+                            if not Humanoid.Sit then
+                                Sf:EnterVehicle(vehicle)
+                            end
+                            if Humanoid.Sit then
+                                Sf:DriveFishing(vehicle, shopPos, Config.AutoFarmFishing)
+                            end
+                        else
+                            Sf:Teleport(shopPos, Config.AutoFarmFishing)
+                        end
+                        
                         task.wait(0.01)
                         
                         if not hasRod then
@@ -2540,6 +2771,31 @@ FishingTab:Slider({
     },
     Callback = function(Value)
         Config.FishingBaitAmount = Value
+    end,
+})
+
+-- إضافة إعدادات المركبات للصيد
+FishingTab:Section({ Title = "Vehicle Settings:" })
+
+FishingTab:Dropdown({
+    Title = "Fishing Vehicle Type",
+    Values = {"Bike", "Car"},
+    Value = "Bike",
+    Callback = function(Value)
+        Config.FishingVehicleType = Value
+    end,
+})
+
+FishingTab:Slider({
+    Title = "Fishing Vehicle Speed",
+    Step = 1,
+    Value = {
+        Min = 10,
+        Max = 350,
+        Default = 60
+    },
+    Callback = function(Value)
+        Config.FishingVehicleSpeed = Value
     end,
 })
 

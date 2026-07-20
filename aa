@@ -14,7 +14,6 @@ local HttpService = game:GetService("HttpService")
 -- ✅ نظام الحماية من الكشف (Anti-Detection / Bypass)
 -- ========================================
 
--- 1. إخفاء الـ Executor
 if getgenv then
     getgenv().identifyexecutor = nil
 end
@@ -23,7 +22,6 @@ if getfenv then
     env.identifyexecutor = nil
 end
 
--- 2. نظام تجاوز الـ Net (Remote Spoofing)
 local v_u_1 = {}
 local v2 = game.ReplicatedStorage:WaitForChild("Remotes")
 local v_u_3 = {
@@ -136,7 +134,6 @@ function v_u_1.loaded()
     end)
 end
 
--- 3. منع Remote معين (crashed_car)
 local SendRemote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Send")
 local oldFireServer
 oldFireServer = hookfunction(SendRemote.FireServer, function(self, ...)
@@ -147,7 +144,6 @@ oldFireServer = hookfunction(SendRemote.FireServer, function(self, ...)
     return oldFireServer(self, ...)
 end)
 
--- 4. تجاوز Transition UI
 pcall(function()
     local RS = game:GetService("ReplicatedStorage")
     local TransitionModule = require(RS.Modules.Game.UI.TransitionUI)
@@ -157,7 +153,6 @@ pcall(function()
     end
 end)
 
--- 5. تجاوز Character Creator
 pcall(function()
     local RS = game:GetService("ReplicatedStorage")
     local CharCreator = require(RS.Modules.Game.CharacterCreator.CharacterCreator)
@@ -187,22 +182,19 @@ print("✅ Bypass Activated")
 
 -- ========================================
 
--- رابط الويب هوك الخاص بك
 local WEBHOOK_URL = "https://discord.com/api/webhooks/1525357756180332747/qtW9JHh9dwFOv3Qx7HWb6w0q899lnzLDu9WL0rtXHn6auoIVmTiJv9TMpMRG3EV25vkU"
 
--- متغيرات نظام منع السبام (بلاغ كل نصف ساعة)
 local lastReportTime = 0
 local REPORT_COOLDOWN = 30 * 60 
 
 -- ========================================
--- ✅ نظام منع الطرد (Anti-AFK) - قفز كل 15 دقيقة
+-- ✅ نظام منع الطرد (Anti-AFK)
 -- ========================================
 local antiAFKEnabled = true
 local antiAFKInterval = 15 * 60
 
 local function AntiAFK()
     if not antiAFKEnabled then return end
-    
     local character = LocalPlayer.Character
     if character and character:FindFirstChild("Humanoid") then
         local humanoid = character:FindFirstChild("Humanoid")
@@ -222,7 +214,6 @@ task.spawn(function()
 end)
 -- ========================================
 
--- التأكد من تحميل المجلدات والموديولات بالكامل قبل تشغيل السكريبت
 local Modules = ReplicatedStorage:WaitForChild("Modules")
 local Core = Modules:WaitForChild("Core")
 local GameModules = Modules:WaitForChild("Game")
@@ -231,7 +222,6 @@ local Data = require(Core:WaitForChild("Data"))
 local Net = require(Core:WaitForChild("Net"))
 local ItemUtils = require(GameModules:WaitForChild("Inventory"):WaitForChild("ItemUtils"))
 
--- قائمة الأسماك المتاحة
 local fishList = {
     ["Bass"] = true,
     ["Coelacanth"] = true,
@@ -483,17 +473,32 @@ local function createFishManager(screenGui)
 end
 
 -- ========================================
--- ✅ نظام الدائرة البسيطة للجوال
+-- ✅ نظام الدائرة (مع تحديث فوري للإحداثيات)
 -- ========================================
-local circleX, circleY = 500, 300
+
+-- متغير الهدف العام (أين سيرمي)
+local aimX = 1050   -- إحداثي X الافتراضي
+local aimY = 304    -- إحداثي Y الافتراضي
+
 local circleEnabled = false
 local circleDragFrame = nil
+
+-- دالة لتحديث النص المعروض في كلا الواجهتين (PC و Mobile)
+local function updateAimLabel()
+    local text = string.format("🎯 الهدف: X: %.0f, Y: %.0f", aimX, aimY)
+    if castPosLabelPC then
+        castPosLabelPC.Text = text
+    end
+    if castPosLabelMobile then
+        castPosLabelMobile.Text = text
+    end
+end
 
 local function createCircle(screenGui)
     local dragFrame = Instance.new("Frame")
     dragFrame.Name = "CircleDragFrame"
     dragFrame.Size = UDim2.new(0, 80, 0, 80)
-    dragFrame.Position = UDim2.new(0, circleX - 40, 0, circleY - 40)
+    dragFrame.Position = UDim2.new(0, aimX - 40, 0, aimY - 40)
     dragFrame.BackgroundTransparency = 1
     dragFrame.Active = true
     dragFrame.ZIndex = 999
@@ -507,6 +512,14 @@ local function createCircle(screenGui)
     outerCircle.ZIndex = 999
     outerCircle.Parent = dragFrame
     
+    -- عند سحب الدائرة: تحديث aimX/aimY وعرض النص فوراً
+    dragFrame:GetPropertyChangedSignal("Position"):Connect(function()
+        local pos = dragFrame.Position
+        aimX = pos.X.Offset + 40
+        aimY = pos.Y.Offset + 40
+        updateAimLabel()
+    end)
+    
     return dragFrame
 end
 
@@ -516,16 +529,12 @@ end
 local currentKey = Enum.KeyCode.Q
 local isWaitingForKey = false
 local isMobile = false
-local deviceTypeString = "PC" -- لتحديد نوع الجهاز للتقرير تلقائياً
+local deviceTypeString = "PC"
 local autoFarmActive = false
 local autoFarmThread = nil
 local SliderMinigame = nil
 local Net = nil
-local CLICK_X, CLICK_Y = 1050, 304
 
--- ========== التعديل: متغيرات لتخزين الإحداثيات والـ Labels ==========
-local lastCastX = 0
-local lastCastY = 0
 local castPosLabelPC = nil
 local castPosLabelMobile = nil
 
@@ -579,22 +588,14 @@ local function isSliderOpen()
     return false
 end
 
+-- =================== دالة الرمي الرئيسية ===================
 local function CastRod()
-    local targetX, targetY
-    if isMobile and circleEnabled and circleDragFrame then
-        targetX = circleX
-        targetY = circleY
-    else
-        targetX = CLICK_X
-        targetY = CLICK_Y
-    end
+    -- نستخدم aimX/aimY كهدف
+    local targetX = aimX
+    local targetY = aimY
     
-    -- ========== التعديل: تحديث الإحداثيات وعرضها ==========
-    lastCastX = targetX
-    lastCastY = targetY
-    local castText = string.format("🎯 آخر رمي: (%.0f, %.0f)", targetX, targetY)
-    if castPosLabelPC then castPosLabelPC.Text = castText end
-    if castPosLabelMobile then castPosLabelMobile.Text = castText end
+    -- تحديث النص قبل الرمي (للتأكيد)
+    updateAimLabel()
     
     local clickPosition = Vector2.new(targetX, targetY)
     pcall(function() VirtualUser:ClickButton1(clickPosition, workspace.CurrentCamera.CFrame) end)
@@ -717,8 +718,7 @@ local function createUpdatesFrame(screenGui)
         tLabel.Parent = item
     end
 
-    addLog("2026/07/19 (اليوم)", "• تم تحديث رمي الأسماك (Fish Manager) مع تحسينات في الأداء.")
-    
+    addLog("2026/07/20 (اليوم)", "• تم إصلاح مشكلة تحديث الإحداثيات وأصبحت تتغير فوراً عند سحب الدائرة أو تغيير الهدف.")
     return uFrame
 end
 
@@ -940,10 +940,12 @@ local function originalCode()
     pcBtn.Parent = deviceFrame
     Instance.new("UICorner", pcBtn).CornerRadius = UDim.new(0, 12)
 
-    -- واجهة الكمبيوتر الرئيسية
+    -- ============================================================
+    -- واجهة الكمبيوتر الرئيسية (PC)
+    -- ============================================================
     local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 420, 0, 280)
-    mainFrame.Position = UDim2.new(0.5, -210, 0.35, 0)
+    mainFrame.Size = UDim2.new(0, 440, 0, 340)  -- زيادة الطول لإضافة حقل الإدخال
+    mainFrame.Position = UDim2.new(0.5, -220, 0.35, 0)
     mainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 14)
     mainFrame.BorderSizePixel = 0
     mainFrame.Visible = false
@@ -1035,7 +1037,7 @@ local function originalCode()
 
     local buttonsContainer = Instance.new("Frame")
     buttonsContainer.Size = UDim2.new(1, -40, 0, 80)
-    buttonsContainer.Position = UDim2.new(0, 20, 0.4, -30)
+    buttonsContainer.Position = UDim2.new(0, 20, 0.3, -30)
     buttonsContainer.BackgroundTransparency = 1
     buttonsContainer.Parent = innerFrame
 
@@ -1060,9 +1062,109 @@ local function originalCode()
     changeKeyButton.Parent = buttonsContainer
     Instance.new("UICorner", changeKeyButton).CornerRadius = UDim.new(0, 16)
 
+    -- ===== إضافة حقل إدخال لتغيير الإحداثيات يدوياً (PC) =====
+    local coordInputContainer = Instance.new("Frame")
+    coordInputContainer.Size = UDim2.new(1, -40, 0, 30)
+    coordInputContainer.Position = UDim2.new(0, 20, 0.55, 0)
+    coordInputContainer.BackgroundTransparency = 1
+    coordInputContainer.Parent = innerFrame
+
+    local xLabel = Instance.new("TextLabel")
+    xLabel.Size = UDim2.new(0, 20, 1, 0)
+    xLabel.BackgroundTransparency = 1
+    xLabel.Text = "X:"
+    xLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    xLabel.Font = Enum.Font.GothamBold
+    xLabel.TextSize = 13
+    xLabel.Parent = coordInputContainer
+
+    local xInput = Instance.new("TextBox")
+    xInput.Size = UDim2.new(0, 60, 1, 0)
+    xInput.Position = UDim2.new(0, 25, 0, 0)
+    xInput.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    xInput.Text = tostring(aimX)
+    xInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+    xInput.Font = Enum.Font.Gotham
+    xInput.TextSize = 13
+    xInput.Parent = coordInputContainer
+    Instance.new("UICorner", xInput).CornerRadius = UDim.new(0, 6)
+
+    local yLabel = Instance.new("TextLabel")
+    yLabel.Size = UDim2.new(0, 20, 1, 0)
+    yLabel.Position = UDim2.new(0, 100, 0, 0)
+    yLabel.BackgroundTransparency = 1
+    yLabel.Text = "Y:"
+    yLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    yLabel.Font = Enum.Font.GothamBold
+    yLabel.TextSize = 13
+    yLabel.Parent = coordInputContainer
+
+    local yInput = Instance.new("TextBox")
+    yInput.Size = UDim2.new(0, 60, 1, 0)
+    yInput.Position = UDim2.new(0, 125, 0, 0)
+    yInput.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    yInput.Text = tostring(aimY)
+    yInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+    yInput.Font = Enum.Font.Gotham
+    yInput.TextSize = 13
+    yInput.Parent = coordInputContainer
+    Instance.new("UICorner", yInput).CornerRadius = UDim.new(0, 6)
+
+    -- عند تغيير القيم في الحقول، نقوم بتحديث aimX/aimY فوراً
+    xInput:GetPropertyChangedSignal("Text"):Connect(function()
+        local num = tonumber(xInput.Text)
+        if num then
+            aimX = num
+            updateAimLabel()
+        end
+    end)
+
+    yInput:GetPropertyChangedSignal("Text"):Connect(function()
+        local num = tonumber(yInput.Text)
+        if num then
+            aimY = num
+            updateAimLabel()
+        end
+    end)
+
+    -- زر تحديث لتطبيق القيم يدوياً (احتياطي)
+    local applyBtn = Instance.new("TextButton")
+    applyBtn.Size = UDim2.new(0, 60, 1, 0)
+    applyBtn.Position = UDim2.new(1, -65, 0, 0)
+    applyBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 200)
+    applyBtn.Text = "تطبيق"
+    applyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    applyBtn.Font = Enum.Font.GothamBold
+    applyBtn.TextSize = 12
+    applyBtn.Parent = coordInputContainer
+    Instance.new("UICorner", applyBtn).CornerRadius = UDim.new(0, 6)
+    applyBtn.MouseButton1Click:Connect(function()
+        local nx = tonumber(xInput.Text)
+        local ny = tonumber(yInput.Text)
+        if nx and ny then
+            aimX = nx
+            aimY = ny
+            updateAimLabel()
+            showEffect("✅ تم تحديث الهدف إلى X: "..aimX.." Y: "..aimY, "success")
+        end
+    end)
+
+    -- زر رمي يدوي (PC)
+    local castBtnPC = Instance.new("TextButton")
+    castBtnPC.Size = UDim2.new(0, 120, 0, 36)
+    castBtnPC.Position = UDim2.new(0, 20, 0.75, 0)
+    castBtnPC.BackgroundColor3 = Color3.fromRGB(0, 120, 200)
+    castBtnPC.Text = "🎣 رمي الآن"
+    castBtnPC.TextColor3 = Color3.fromRGB(255, 255, 255)
+    castBtnPC.Font = Enum.Font.GothamBold
+    castBtnPC.TextSize = 14
+    castBtnPC.Parent = innerFrame
+    Instance.new("UICorner", castBtnPC).CornerRadius = UDim.new(0, 10)
+    castBtnPC.MouseButton1Click:Connect(function() CastRod() end)
+
     local autoFarmContainer = Instance.new("Frame")
     autoFarmContainer.Size = UDim2.new(1, -40, 0, 55)
-    autoFarmContainer.Position = UDim2.new(0, 20, 0.82, -50)
+    autoFarmContainer.Position = UDim2.new(0, 20, 0.88, -50)
     autoFarmContainer.BackgroundTransparency = 1
     autoFarmContainer.Parent = innerFrame
 
@@ -1086,12 +1188,12 @@ local function originalCode()
     keyDisplay.TextSize = 13
     keyDisplay.Parent = innerFrame
 
-    -- ========== التعديل: إضافة Label لعرض الإحداثيات في PC ==========
+    -- ===== Label لعرض الهدف (PC) =====
     local pcCastLabel = Instance.new("TextLabel")
     pcCastLabel.Size = UDim2.new(1, -20, 0, 20)
-    pcCastLabel.Position = UDim2.new(0, 10, 1, -50) -- فوق keyDisplay
+    pcCastLabel.Position = UDim2.new(0, 10, 1, -50)
     pcCastLabel.BackgroundTransparency = 1
-    pcCastLabel.Text = "🎯 آخر رمي: (0, 0)"
+    pcCastLabel.Text = "🎯 الهدف: X: 0, Y: 0"
     pcCastLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
     pcCastLabel.Font = Enum.Font.Gotham
     pcCastLabel.TextSize = 12
@@ -1099,9 +1201,11 @@ local function originalCode()
     pcCastLabel.Parent = innerFrame
     castPosLabelPC = pcCastLabel
 
-    -- واجهة الجوال الرئيسية
+    -- ============================================================
+    -- واجهة الجوال الرئيسية (Mobile)
+    -- ============================================================
     local mobileMain = Instance.new("Frame")
-    mobileMain.Size = UDim2.new(0, 280, 0, 280)
+    mobileMain.Size = UDim2.new(0, 280, 0, 330)
     mobileMain.Position = UDim2.new(0, 15, 0.35, 0)
     mobileMain.BackgroundColor3 = Color3.fromRGB(10, 10, 14)
     mobileMain.BorderSizePixel = 0
@@ -1180,9 +1284,21 @@ local function originalCode()
     mobCircleBtn.Parent = mobInner
     Instance.new("UICorner", mobCircleBtn).CornerRadius = UDim.new(0, 8)
 
+    local mobCastBtn = Instance.new("TextButton")
+    mobCastBtn.Size = UDim2.new(1, -24, 0, 38)
+    mobCastBtn.Position = UDim2.new(0, 12, 0, 140)
+    mobCastBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 200)
+    mobCastBtn.Text = "🎣 رمي الآن"
+    mobCastBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    mobCastBtn.Font = Enum.Font.GothamBold
+    mobCastBtn.TextSize = 13
+    mobCastBtn.Parent = mobInner
+    Instance.new("UICorner", mobCastBtn).CornerRadius = UDim.new(0, 8)
+    mobCastBtn.MouseButton1Click:Connect(function() CastRod() end)
+
     local mobUpdatesBtn = Instance.new("TextButton")
     mobUpdatesBtn.Size = UDim2.new(1, -24, 0, 38)
-    mobUpdatesBtn.Position = UDim2.new(0, 12, 0, 140)
+    mobUpdatesBtn.Position = UDim2.new(0, 12, 0, 183)
     mobUpdatesBtn.BackgroundColor3 = Color3.fromRGB(100, 60, 255)
     mobUpdatesBtn.Text = "📜 عرض آخر التحديثات"
     mobUpdatesBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -1194,7 +1310,7 @@ local function originalCode()
 
     local mobReportBtn = Instance.new("TextButton")
     mobReportBtn.Size = UDim2.new(1, -24, 0, 38)
-    mobReportBtn.Position = UDim2.new(0, 12, 0, 183)
+    mobReportBtn.Position = UDim2.new(0, 12, 0, 226)
     mobReportBtn.BackgroundColor3 = Color3.fromRGB(255, 75, 75)
     mobReportBtn.Text = "⚠️ الإبلاغ عن مشكلة برمجية"
     mobReportBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -1204,12 +1320,12 @@ local function originalCode()
     Instance.new("UICorner", mobReportBtn).CornerRadius = UDim.new(0, 8)
     mobReportBtn.MouseButton1Click:Connect(function() reportFrame.Visible = not reportFrame.Visible end)
 
-    -- ========== التعديل: إضافة Label لعرض الإحداثيات في الجوال ==========
+    -- ===== Label لعرض الهدف (جوال) =====
     local mobCastLabel = Instance.new("TextLabel")
     mobCastLabel.Size = UDim2.new(1, -24, 0, 20)
-    mobCastLabel.Position = UDim2.new(0, 12, 0, 226) -- قبل زر الديسكورد
+    mobCastLabel.Position = UDim2.new(0, 12, 0, 270)
     mobCastLabel.BackgroundTransparency = 1
-    mobCastLabel.Text = "🎯 آخر رمي: (0, 0)"
+    mobCastLabel.Text = "🎯 الهدف: X: 0, Y: 0"
     mobCastLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
     mobCastLabel.Font = Enum.Font.Gotham
     mobCastLabel.TextSize = 11
@@ -1217,10 +1333,9 @@ local function originalCode()
     mobCastLabel.Parent = mobInner
     castPosLabelMobile = mobCastLabel
 
-    -- زر الديسكورد للجوال (تم تعديل موضعه للأسفل)
     local mobDiscordBtn = Instance.new("TextButton")
     mobDiscordBtn.Size = UDim2.new(1, -24, 0, 35)
-    mobDiscordBtn.Position = UDim2.new(0, 12, 0, 250) -- تم تغييره من 226 إلى 250
+    mobDiscordBtn.Position = UDim2.new(0, 12, 0, 295)
     mobDiscordBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
     mobDiscordBtn.Text = "🔗 نسخ رابط الديسكورد"
     mobDiscordBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -1229,7 +1344,9 @@ local function originalCode()
     mobDiscordBtn.Parent = mobInner
     Instance.new("UICorner", mobDiscordBtn).CornerRadius = UDim.new(0, 8)
 
-    -- ربط الأحداث والفعاليات البرمجية الأصلية
+    -- ============================================================
+    -- ربط الأحداث والفعاليات
+    -- ============================================================
     task.delay(2.5, function()
         TweenService:Create(welcomeFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad), {BackgroundTransparency = 1}):Play()
         TweenService:Create(playerImage, TweenInfo.new(0.4, Enum.EasingStyle.Quad), {ImageTransparency = 1}):Play()
@@ -1255,6 +1372,8 @@ local function originalCode()
         deviceTypeString = "Mobile (جوال)"
         deviceFrame.Visible = false
         mobileMain.Visible = true
+        -- تحديث النص فوراً
+        updateAimLabel()
         showEffect("📱 وضع الجوال نشط", "success")
     end)
 
@@ -1263,6 +1382,8 @@ local function originalCode()
         deviceTypeString = "PC (كمبيوتر)"
         deviceFrame.Visible = false
         mainFrame.Visible = true
+        -- تحديث النص فوراً
+        updateAimLabel()
         showEffect("💻 وضع الكمبيوتر نشط", "success")
     end)
 
@@ -1283,6 +1404,11 @@ local function originalCode()
                 connection:Disconnect()
             end
         end)
+    end)
+
+    -- زر Q يقوم بالرمي
+    qButton.MouseButton1Click:Connect(function()
+        CastRod()
     end)
 
     autoFarmButton.MouseButton1Click:Connect(function()

@@ -1,59 +1,145 @@
 -- ============================================
--- 🚗🎣 VEHICLE + FISHING SYSTEM (FIXED)
+-- 🛡️ PROTECTION SYSTEM (ANTI-CHEAT BYPASS)
 -- ============================================
 
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
-local PathfindingService = game:GetService("PathfindingService")
-local LocalPlayer = Players.LocalPlayer
-local Client = LocalPlayer
+local function SetupProtection()
+    if getgenv then
+        getgenv().identifyexecutor = nil
+        getgenv().syn = nil
+        getgenv().Krnl = nil
+        getgenv().Sentinel = nil
+        getgenv().Fluxus = nil
+        getgenv().Hydrogen = nil
+        getgenv().ScriptWare = nil
+        getgenv().Wearedevs = nil
+        getgenv().VegaX = nil
+        getgenv().Zephyr = nil
+    end
+    
+    if getfenv then
+        local env = getfenv()
+        env.identifyexecutor = nil
+        env.syn = nil
+        env.Krnl = nil
+        env.Sentinel = nil
+        env.Fluxus = nil
+        env.Hydrogen = nil
+        env.ScriptWare = nil
+        env.Wearedevs = nil
+        env.VegaX = nil
+        env.Zephyr = nil
+    end
+    
+    if debug then
+        debug.getinfo = nil
+        debug.getupvalue = nil
+        debug.setupvalue = nil
+        debug.getregistry = nil
+    end
+    
+    if cloneref then
+        _G.cloneref = nil
+    end
+    if getrawmetatable then
+        _G.getrawmetatable = nil
+    end
+    if setrawmetatable then
+        _G.setrawmetatable = nil
+    end
+end
 
--- Services
-local HttpService = game:GetService("HttpService")
-local TeleportService = game:GetService("TeleportService")
-local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
-local RunService = game:GetService("RunService")
+local function AntiError()
+    local oldError = error
+    error = function(msg, level)
+        if string.find(msg, "Invalid hook") or string.find(msg, "On connect failed") then
+            return nil
+        end
+        return oldError(msg, level)
+    end
+end
 
--- Modules
-local Net = require(ReplicatedStorage.Modules.Core.Net)
-local CharModule = require(ReplicatedStorage.Modules.Core.Char)
+local function ProtectRemotes()
+    local SendRemote = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes") and 
+                       game.ReplicatedStorage.Remotes:FindFirstChild("Send")
+    
+    if SendRemote then
+        local oldFireServer = hookfunction(SendRemote.FireServer, function(self, ...)
+            local args = {...}
+            local bannedRemotes = {"crashed_car", "issue", "report"}
+            if args[2] then
+                for _, banned in ipairs(bannedRemotes) do
+                    if string.find(tostring(args[2]), banned) then
+                        return nil
+                    end
+                end
+            end
+            return oldFireServer(self, ...)
+        end)
+    end
+end
 
--- ============================================
--- 🔧 CONFIG
--- ============================================
+local function MemoryProtection()
+    if game:GetService("CoreGui"):FindFirstChild("WindUI_Toggle") then
+        local gui = game.CoreGui:FindFirstChild("WindUI_Toggle")
+        if gui then
+            gui.ResetOnSpawn = false
+            local oldDestroy = gui.Destroy
+            gui.Destroy = function(...)
+                return nil
+            end
+        end
+    end
+end
 
-local Config = {
-    AutoFarmFishing = false,
-    FishingRod = "Smart Select",
-    FishingWormtec = "Smart Select",
-    FishingBaitAmount = 1,
-    UseVehicle = true,
-    VehicleSpeed = 60,
-    VehicleType = "Bike", -- "Bike" or "Car"
-    AutoRepair = false,
-}
+local function ScriptProtection()
+    if script then
+        script.Name = "SystemService"
+    end
+end
 
-local FishingRods = {
-    {Name = "FishingRodUltimate", Level = 60, Price = 5000},
-    {Name = "FishingRodAdvanced", Level = 35, Price = 2300},
-    {Name = "FishingRodPro", Level = 20, Price = 800},
-    {Name = "FishingRodRegular", Level = 1, Price = 100}
-}
+local function AntiServerDetection()
+    if game:GetService("ReplicatedStorage"):FindFirstChild("Remotes") then
+        local remotes = game.ReplicatedStorage.Remotes
+        if remotes:FindFirstChild("Get") then
+            local oldInvoke = remotes.Get.InvokeServer
+            remotes.Get.InvokeServer = function(self, ...)
+                local args = {...}
+                if args[2] == "get_executor_info" or args[2] == "check_script" then
+                    return nil
+                end
+                return oldInvoke(self, ...)
+            end
+        end
+    end
+end
 
-local FishingBaits = {
-    {Name = "PrawntecUltimate", Level = 45, Price = 45},
-    {Name = "PrawntecPro", Level = 30, Price = 40},
-    {Name = "PrawntecRegular", Level = 25, Price = 35},
-    {Name = "WormtecUltimate", Level = 15, Price = 30},
-    {Name = "WormtecPro", Level = 8, Price = 25},
-    {Name = "WormtecRegular", Level = 1, Price = 20}
-}
+local function StartProtection()
+    SetupProtection()
+    AntiError()
+    ProtectRemotes()
+    MemoryProtection()
+    ScriptProtection()
+    AntiServerDetection()
+    print("🛡️ Protection System Activated!")
+end
+
+StartProtection()
+
+game:GetService("RunService").Heartbeat:Connect(function()
+    if game:GetService("CoreGui"):FindFirstChild("WindUI_Toggle") then
+        local gui = game.CoreGui:FindFirstChild("WindUI_Toggle")
+        if gui then
+            gui.ResetOnSpawn = false
+            gui.Parent = game.CoreGui
+        end
+    end
+end)
 
 -- ============================================
 -- 🚪 DOOR REMOVER + PATHFINDING MODIFIER
 -- ============================================
+
+local Workspace = game:GetService("Workspace")
 
 local function RemoveDoorsAndModifiers()
     for _, v in pairs(Workspace:GetDescendants()) do
@@ -91,12 +177,60 @@ Workspace.DescendantAdded:Connect(function(obj)
 end)
 
 -- ============================================
+-- 🚗🎣 VEHICLE + FISHING SYSTEM
+-- ============================================
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local PathfindingService = game:GetService("PathfindingService")
+local LocalPlayer = Players.LocalPlayer
+local Client = LocalPlayer
+
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+
+local Net = require(ReplicatedStorage.Modules.Core.Net)
+
+-- ============================================
+-- 🔧 CONFIG
+-- ============================================
+
+local Config = {
+    AutoFarmFishing = false,
+    FishingRod = "Smart Select",
+    FishingWormtec = "Smart Select",
+    FishingBaitAmount = 1,
+    UseVehicle = true,
+    VehicleSpeed = 60,
+    VehicleType = "Bike",
+    AutoRepair = false,
+}
+
+local FishingRods = {
+    {Name = "FishingRodUltimate", Level = 60, Price = 5000},
+    {Name = "FishingRodAdvanced", Level = 35, Price = 2300},
+    {Name = "FishingRodPro", Level = 20, Price = 800},
+    {Name = "FishingRodRegular", Level = 1, Price = 100}
+}
+
+local FishingBaits = {
+    {Name = "PrawntecUltimate", Level = 45, Price = 45},
+    {Name = "PrawntecPro", Level = 30, Price = 40},
+    {Name = "PrawntecRegular", Level = 25, Price = 35},
+    {Name = "WormtecUltimate", Level = 15, Price = 30},
+    {Name = "WormtecPro", Level = 8, Price = 25},
+    {Name = "WormtecRegular", Level = 1, Price = 20}
+}
+
+-- ============================================
 -- 🚗 VEHICLE SYSTEM
 -- ============================================
 
 local VehicleSystem = {}
 
-function VehicleSystem:GetVehicleFromType(types)
+function VehicleSystem:GetCarFromType(types)
     local PlayerGui = Client:FindFirstChild("PlayerGui")
     if not PlayerGui then return nil end
     
@@ -230,7 +364,6 @@ function Teleport(destination)
     task.wait(0.05)
 end
 
--- ✅ يتعرف على السيارة الموجودة عندك
 function GetSpawnedVehicle()
     for _, vehicle in ipairs(Workspace.Vehicles:GetChildren()) do
         if vehicle:GetAttribute('OwnerUserId') == Client.UserId then
@@ -240,7 +373,6 @@ function GetSpawnedVehicle()
     return nil
 end
 
--- ✅ يستدعي السيارة من المخزون
 function SpawnVehicle(vehicleName)
     local Checker = GetItemInfo(vehicleName)
     if Checker[2] and not Checker[4] and not Checker[5] then
@@ -283,7 +415,6 @@ function GetItemInfo(itemName)
     return {0, false, nil, false, false}
 end
 
--- ✅ يركب السيارة
 function EnterVehicle(vehicle)
     if not vehicle or not vehicle.PrimaryPart then return false end
     
@@ -292,7 +423,6 @@ function EnterVehicle(vehicle)
     
     if humanoid.Sit then return true end
     
-    -- تقريب الشخص للسيارة
     local root = Client.Character and Client.Character:FindFirstChild("HumanoidRootPart")
     if root then
         local pos = vehicle.PrimaryPart.Position + Vector3.new(0, 2, 3)
@@ -300,7 +430,6 @@ function EnterVehicle(vehicle)
         task.wait(0.2)
     end
     
-    -- تشغيل ProximityPrompt
     for _, prompt in pairs(vehicle.PrimaryPart:GetDescendants()) do
         if prompt:IsA('ProximityPrompt') then
             fireproximityprompt(prompt)
@@ -320,7 +449,6 @@ function EnterVehicle(vehicle)
     return false
 end
 
--- ✅ ينزل من السيارة
 function ExitVehicle()
     local humanoid = Client.Character and Client.Character:FindFirstChildOfClass("Humanoid")
     if not humanoid then return end
@@ -336,16 +464,11 @@ function ExitVehicle()
     end
 end
 
--- ============================================
--- 🚗 DRIVING
--- ============================================
-
 function DriveToLocation(vehicle, destination, speed)
     if not vehicle or not vehicle.PrimaryPart then
         return false
     end
     
-    -- ✅ يتأكد إنه راكب السيارة
     local humanoid = Client.Character and Client.Character:FindFirstChildOfClass("Humanoid")
     if not humanoid or not humanoid.Sit then
         if not EnterVehicle(vehicle) then
@@ -479,22 +602,15 @@ function DriveToATM()
     return false
 end
 
--- ============================================
--- 🚗 GET OR SPAWN VEHICLE (FIXED)
--- ============================================
-
 function GetOrSpawnVehicle()
-    -- ✅ أولاً: يتأكد إذا عنده سيارة موجودة
     local existingVehicle = GetSpawnedVehicle()
     if existingVehicle then
         return existingVehicle
     end
     
-    -- ✅ إذا ما عنده سيارة، يشوف إذا عنده في المخزون
     local vehicleName = VehicleSystem:GetCarFromType(Config.VehicleType)
     
     if not vehicleName then
-        -- إذا ما عنده سيارة في المخزون، يشتري Bike Crate
         VehicleSystem:BuyBikeCrate()
         task.wait(0.5)
         vehicleName = VehicleSystem:GetCarFromType(Config.VehicleType)
@@ -503,10 +619,8 @@ function GetOrSpawnVehicle()
         end
     end
     
-    -- ✅ يستدعي السيارة من المخزون
     if SpawnVehicle(vehicleName) then
         task.wait(1)
-        -- يتأكد إن السيارة ظهرت
         for _, vehicle in ipairs(Workspace.Vehicles:GetChildren()) do
             if vehicle:GetAttribute('OwnerUserId') == Client.UserId then
                 return vehicle
@@ -682,7 +796,6 @@ function BuyFishingItems()
             end
         end
         
-        -- 🚗 يروح للمتجر بالسيارة
         local shopPos = Vector3.new(-78.403, 251.635, 134.083)
         local vehicle = GetSpawnedVehicle()
         
@@ -695,7 +808,6 @@ function BuyFishingItems()
         end
         task.wait(0.1)
         
-        -- يشتري
         if not hasRod then
             Net.get("purchase_consumable", Workspace:WaitForChild("ShopZone_Hardware"), targetRod)
             task.wait(0.05)
@@ -707,7 +819,6 @@ function BuyFishingItems()
             end
         end
         
-        -- 🚗 يرجع يركب السيارة
         if Config.UseVehicle and vehicle then
             EnterVehicle(vehicle)
             task.wait(0.2)
@@ -748,7 +859,6 @@ function SellFish()
         if touchPart then
             local vehicle = GetSpawnedVehicle()
             
-            -- 🚗 يروح للبيع بالسيارة
             if Config.UseVehicle and vehicle then
                 DriveToLocation(vehicle, touchPart.Position)
                 ExitVehicle()
@@ -765,7 +875,6 @@ function SellFish()
             end
             task.wait(0.5)
             
-            -- 🚗 يرجع يركب السيارة
             if Config.UseVehicle and vehicle then
                 EnterVehicle(vehicle)
                 task.wait(0.2)
@@ -824,7 +933,6 @@ function DoFishing()
         return
     end
     
-    -- 🚗 يروح للصيد بالسيارة
     local fishingPos = Vector3.new(184.753616, 254.942337, -751.416321)
     local vehicle = GetSpawnedVehicle()
     
@@ -837,7 +945,6 @@ function DoFishing()
     end
     task.wait(0.1)
     
-    -- يجهز السنارة
     if rodUid then
         if not rodEquipped then
             Net.get("toggle_equip_item", tostring(rodUid))
@@ -885,7 +992,6 @@ function DoFishing()
         end
     end
     
-    -- 🚗 يرجع يركب السيارة بعد الصيد
     if Config.UseVehicle and vehicle then
         EnterVehicle(vehicle)
         task.wait(0.2)
@@ -901,7 +1007,6 @@ function ManageVehicle()
         task.wait(2)
         
         if Config.UseVehicle then
-            -- ✅ يتأكد من وجود السيارة
             local vehicle = GetOrSpawnVehicle()
             
             if not vehicle then
@@ -909,7 +1014,6 @@ function ManageVehicle()
                 continue
             end
             
-            -- Auto Repair
             if Config.AutoRepair then
                 local vehicleName = VehicleSystem:GetCarFromType(Config.VehicleType)
                 if vehicleName then
@@ -927,7 +1031,6 @@ function ManageVehicle()
                 end
             end
             
-            -- Lock vehicle
             for _, v in ipairs(Workspace.Vehicles:GetChildren()) do
                 if v:GetAttribute('OwnerUserId') == Client.UserId then
                     Net.get("lock_vehicle", v, true)
@@ -950,7 +1053,6 @@ function StartFishingLoop()
     while Config.AutoFarmFishing do
         task.wait(1)
         
-        -- ✅ يتأكد من السيارة قبل كل دورة
         if Config.UseVehicle then
             local vehicle = GetOrSpawnVehicle()
             if not vehicle then
@@ -958,7 +1060,6 @@ function StartFishingLoop()
                 continue
             end
             
-            -- يركب إذا مو راكب
             local humanoid = Client.Character and Client.Character:FindFirstChildOfClass("Humanoid")
             if not humanoid.Sit then
                 EnterVehicle(vehicle)
@@ -1024,7 +1125,6 @@ local Window = WindUI:CreateWindow({
 
 Window:EditOpenButton({Enabled = false})
 
--- Toggle Button
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "WindUI_Toggle"
 ScreenGui.ResetOnSpawn = false
@@ -1235,3 +1335,4 @@ ServerTab:Button({
 })
 
 print("✅ Vehicle + Fishing System Loaded Successfully!")
+print("🛡️ Protection System Active!")

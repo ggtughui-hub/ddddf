@@ -16,7 +16,6 @@ end
 pcall(
     function()
         local TransitionModule = require(RS.Modules.Game.UI.TransitionUI)
-
         local old_transition = TransitionModule.transition
         TransitionModule.transition = function(p_in, p_wait, p_out, noLogo)
             return result
@@ -24,11 +23,9 @@ pcall(
     end
 )
 
-
 pcall(
     function()
         local CharCreator = require(RS.Modules.Game.CharacterCreator.CharacterCreator)
-
         if CharCreator.start then
             local old_start = CharCreator.start
             CharCreator.start = function(...)
@@ -37,14 +34,12 @@ pcall(
                 end
             end
         end
-
         if CharCreator.load_page then
             local old_load = CharCreator.load_page
             CharCreator.load_page = function(...)
                 return old_load(...)
             end
         end
-
         if CharCreator.initiate then
             local old_initiate = CharCreator.initiate
             CharCreator.initiate = function(...)
@@ -54,11 +49,8 @@ pcall(
     end
 )
 
-
 local VehiclesFolder = workspace:WaitForChild("Vehicles")
-
 local protectedVehicles = {}
-
 local function updateVehicleList()
     protectedVehicles = {}
     for _, model in ipairs(VehiclesFolder:GetDescendants()) do
@@ -70,7 +62,6 @@ local function updateVehicleList()
         end
     end
 end
-
 updateVehicleList()
 
 local function isProtectedSeat(seat)
@@ -117,6 +108,7 @@ if getfenv then
     env.identifyexecutor = nil
 end
 
+-- Remote Handling
 local v_u_1 = {}
 local v2 = game.ReplicatedStorage:WaitForChild("Remotes")
 local v_u_3 = {
@@ -227,6 +219,7 @@ end
 
 print("bypassed")
 
+-- Services & Modules
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
 local UserInputService = game:GetService("UserInputService")
@@ -235,24 +228,12 @@ local RunService = game:GetService("RunService")
 local CurrentCamera = workspace.CurrentCamera
 local Debris = game:GetService("Debris")
 
-local Players, RunService, Camera, LocalPlayer, Mouse =
-    game:GetService("Players"),
-    game:GetService("RunService"),
-    workspace.CurrentCamera,
-    game.Players.LocalPlayer,
-    game.Players.LocalPlayer:GetMouse()
-
 local Net = require(ReplicatedStorage.Modules.Core.Net)
 local RagdollModule = require(ReplicatedStorage.Modules.Game.Ragdoll)
 local Vechine = require(ReplicatedStorage.Modules.Game.VehicleSystem.Vehicle)
 local CharModule = require(ReplicatedStorage.Modules.Core.Char)
 local SprintModule = require(ReplicatedStorage.Modules.Game.Sprint)
 local CrateController = require(ReplicatedStorage.Modules.Game.CrateSystem.Crate)
-
-local Settings = {}
-function c()
-    return Settings
-end
 
 local Client = Players.LocalPlayer
 local Character = Client.Character or Client.CharacterAdded:Wait()
@@ -262,14 +243,12 @@ local Humanoid = Character:WaitForChild("Humanoid")
 local RootPart = Character:WaitForChild("HumanoidRootPart")
 local Backpack = Client:WaitForChild("Backpack")
 
-Client.CharacterAdded:Connect(
-    function(newCharacter)
-        Character = newCharacter
-        Humanoid = Character:WaitForChild("Humanoid")
-        RootPart = Character:WaitForChild("HumanoidRootPart")
-        Backpack = Client:WaitForChild("Backpack")
-    end
-)
+Client.CharacterAdded:Connect(function(newCharacter)
+    Character = newCharacter
+    Humanoid = Character:WaitForChild("Humanoid")
+    RootPart = Character:WaitForChild("HumanoidRootPart")
+    Backpack = Client:WaitForChild("Backpack")
+end)
 
 local Sf = {}
 
@@ -278,70 +257,9 @@ local consume_stamina = Sprint.consume_stamina
 local SprintBar = debug.getupvalue(consume_stamina, 2).sprint_bar
 local RS = game:GetService("ReplicatedStorage")
 
--- 🔧 ATM Proximity Prompt Distance Modifier (يستخدمها Fishing لسحب الفلوس)
-local function ModifyATMPrompts()
-    local ATMFolder = workspace:FindFirstChild("Map")
-    if not ATMFolder then return end
-    ATMFolder = ATMFolder:FindFirstChild("Props")
-    if not ATMFolder then return end
-    ATMFolder = ATMFolder:FindFirstChild("ATMs")
-    if not ATMFolder then return end
-    
-    for _, descendant in pairs(ATMFolder:GetDescendants()) do
-        if descendant:IsA("ProximityPrompt") then
-            descendant.MaxActivationDistance = 22
-        end
-    end
-end
-
-ModifyATMPrompts()
-
-workspace.Map.Props.ATMs.ChildAdded:Connect(function(child)
-    if child.Name == "ATM" then
-        task.wait(0.1)
-        for _, descendant in pairs(child:GetDescendants()) do
-            if descendant:IsA("ProximityPrompt") then
-                descendant.MaxActivationDistance = 22
-            end
-        end
-    end
-end)
-
--- Block remote: crashed_car
-local SendRemote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Send")
-local oldFireServer
-oldFireServer = hookfunction(SendRemote.FireServer, function(self, ...)
-    local args = {...}
-    if args[2] == "crashed_car" then
-        return nil
-    end
-    return oldFireServer(self, ...)
-end)
-
--- Services
-local ReplicatedStorage = game:GetService('ReplicatedStorage')
-local PathfindingService = game:GetService('PathfindingService')
-local Players = game:GetService('Players')
-local RunService = game:GetService('RunService')
-
-local Net = require(ReplicatedStorage.Modules.Core.Net)
-local SprintModule = require(ReplicatedStorage.Modules.Game.Sprint)
-
-local Client = Players.LocalPlayer
-local Character = Client.Character or Client.CharacterAdded:Wait()
-local PlayerGui = Client.PlayerGui
-local Humanoid = Character:WaitForChild("Humanoid")
-local RootPart = Character:WaitForChild("HumanoidRootPart")
-local UserId = Client.UserId
-local Backpack = Client:WaitForChild("Backpack")
-
-Client.CharacterAdded:Connect(function(newCharacter)
-	Character = newCharacter
-	Humanoid = Character:WaitForChild('Humanoid')
-	RootPart = Character:WaitForChild('HumanoidRootPart')
-end)
-
--- AutoFarm Configuration (بقاء إعدادات Fishing فقط)
+-- ========================================
+-- CONFIG (Fishing + Vehicles)
+-- ========================================
 local Config = {
 	StopWalking = false,
 	Running = false,
@@ -351,16 +269,22 @@ local Config = {
     AutoFarmFishing = false,
     FishingRod = "Smart Select",
     FishingWormtec = "Smart Select",
-    FishingBaitAmount = 1
+    FishingBaitAmount = 1,
+    -- Vehicles (مسترجعة من ATM Farm)
+    UseVehicleForFishing = false,
+    VechineType = "Bike", -- "Bike" or "Car"
+    InstantVechineSpeed = 60,
+    AutoRepairVehicle = false,
+    LastVehicleTeleport = 0,
 }
 
 local function c()
 	return Config
 end
 
-local Sf = {}
-local func = {}
-
+-- ========================================
+-- الدوال المساعدة الأساسية
+-- ========================================
 local function distTo(v3)
 	return (v3 - RootPart.Position).Magnitude
 end
@@ -390,7 +314,9 @@ end
 
 function ClearPathLines() end
 
--- Helper Functions (المستخدمة في Fishing)
+-- ========================================
+-- دوال Sf الأساسية (المستخدمة في Fishing)
+-- ========================================
 function Sf:dist(Objective)
 	return (Objective.Position - RootPart.Position).Magnitude or 0
 end
@@ -490,6 +416,9 @@ function Sf:ATMMoney()
 	return 0
 end
 
+-- ========================================
+-- دوال Teleport و Pathfinding
+-- ========================================
 function Sf:Teleport(destination, value, t, speed)
 	c().StopWalking = false
 	c()['Running'] = true
@@ -558,7 +487,444 @@ function Sf:Teleport(destination, value, t, speed)
 	c()['Running'] = false
 end
 
--- Setup Pathfinding Modifiers (مرة واحدة فقط)
+-- ========================================
+-- دوال المركبات (مسترجعة من ATM Farm)
+-- ========================================
+local BIKE_CRATE_COST = 870
+local BIKE_ATM_CFRAME = CFrame.new(179.200882, 255.290543, -236.355896, 0.946762264, 2.58641517e-08, 0.321933597, -2.17450005e-08, 1, -1.63909775e-08, -0.321933597, 8.5179126e-09, 0.946762264)
+
+function Sf:BuyBikeCrate()
+	local bikeCrate = workspace.Map.Tiles.BurgerPlaceTile.UrbanCyclesAndSkates.Interior.Crates["Bike Crate"]
+	local touchPart = bikeCrate.Beacon.TouchPart
+
+	if self:GetMoney() < BIKE_CRATE_COST then
+		if self:ATMMoney() >= BIKE_CRATE_COST then
+			Sf:Teleport(BIKE_ATM_CFRAME.Position, true)
+			task.wait(0.1)
+			local needed = BIKE_CRATE_COST - self:GetMoney()
+			if needed > 0 then
+				Net.get("transfer_funds", "bank", "hand", needed)
+				task.wait(0.1)
+			end
+		else
+			task.wait(1)
+			return false
+		end
+	end
+
+	Sf:Teleport(touchPart.Position, true)
+	task.wait(0.1)
+
+	game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Get"):InvokeServer(
+		658,
+		"open_crate",
+		bikeCrate:WaitForChild("CrateOptions"):WaitForChild("Basic"),
+		"money"
+	)
+	task.wait(0.3)
+    return true
+end
+
+function Sf:GetCarFromType(types)
+	local ScrollingFrame = PlayerGui.Items.ItemsHolder.ItemsScrollingFrame
+	if types == "Bike" then
+		for _, v in pairs(ScrollingFrame:GetChildren()) do
+			if v:GetAttribute("ItemType") == "bike" then
+				return v.ItemName.Text == "BMX" and "BMX" or v.ItemName.Text
+			end
+		end
+	else
+		for _, v in pairs(ScrollingFrame:GetChildren()) do
+			if v:GetAttribute('ItemType') == "car" then
+				return v.ItemName.Text
+			end
+		end
+	end
+	return nil
+end
+
+function Sf:GetVehicleHealth(vehicleName)
+	local ScrollingFrame = PlayerGui.Items.ItemsHolder.ItemsScrollingFrame
+	for _, v in pairs(ScrollingFrame:GetChildren()) do
+		if v:GetAttribute('ItemType') == "car" or v:GetAttribute('ItemType') == "bike" then
+			if v.ItemName.Text == vehicleName then
+				local healthLabel = v:FindFirstChild("ItemHealth")
+				if healthLabel and healthLabel.Text then
+					local current, max = healthLabel.Text:match("(%d+)/(%d+)")
+					return tonumber(current), tonumber(max), v.Name
+				end
+			end
+		end
+	end
+	return nil, nil, nil
+end
+
+function Sf:RepairVehicle(uid)
+	if not uid then return false end
+	local repairCost = 1000
+	if Sf:GetMoney() < repairCost then
+		if Sf:ATMMoney() >= repairCost then
+			Sf:Ac("transfer_funds", "bank", "hand", repairCost)
+			task.wait(0.05)
+		else
+			return false
+		end
+	end
+	Net.get("repair_vehicle", uid)
+	task.wait(0.1)
+	return true
+end
+
+function Sf:Drive(model, destination, value, t)
+	if not model or not model.PrimaryPart then
+		c()['Running'] = false
+		return
+	end
+	c()["StopWalking"] = false
+	local path = PathfindingService:CreatePath({
+		AgentRadius = c().VechineType == "car" and 6 or 3.5,
+		AgentHeight = 8,
+		AgentCanJump = true,
+		AgentMaxSlope = 50,
+		AgentCanClimb = false,
+		WaypointSpacing = 8,
+		Costs = {
+			BlockedNode = 100,
+			Cars = 1,
+			Water = math.huge,
+			DoorArea = 1
+		}
+	})
+	
+	local success = pcall(function()
+		path:ComputeAsync(model.PrimaryPart.Position, destination)
+	end)
+	
+	if not success or path.Status ~= Enum.PathStatus.Success then
+		c()['Running'] = false
+		return
+	end
+	
+	local waypoints = path:GetWaypoints()
+	
+	for i, wp in pairs(waypoints) do
+		if not model or not model.PrimaryPart then
+			c()['Running'] = false
+			return
+		end
+		
+		local startPos = model:GetPivot().Position
+		local heightOffset = 2
+		if wp.Action == Enum.PathWaypointAction.Jump then
+			heightOffset = 8
+		end
+		
+		local goalPos = wp.Position + Vector3.new(0, heightOffset, 0)
+		local dir = (goalPos - startPos).Unit
+		local dist = (goalPos - startPos).Magnitude
+		local movedDist = 0
+		local speed = c().InstantVechineSpeed or 55
+		local startTime = tick()
+		
+		while movedDist < dist and value do
+			task.wait(0)
+			if not model or not model.PrimaryPart then
+				c()['Running'] = false
+				return
+			end
+			c()['Running'] = true
+			
+			if not value then
+				c()['Running'] = false
+				break
+			end
+			
+			if not Humanoid.Sit then
+				c()['Running'] = false
+				return self:Drive(model, destination, value, t)
+			end
+			
+			local dt = tick() - startTime
+			movedDist = math.min(dt * speed, dist)
+			local newPos = startPos + dir * movedDist
+			
+			local lookDirection = dir
+			if i < #waypoints then
+				local nextWp = waypoints[i + 1]
+				lookDirection = (nextWp.Position - wp.Position).Unit
+			end
+			
+			local Rotation = CFrame.new(newPos) * CFrame.Angles(0, math.atan2(lookDirection.X, lookDirection.Z), 0)
+			model:PivotTo(Rotation)
+			
+			for _, part in ipairs(model:GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.AssemblyLinearVelocity = Vector3.zero
+					part.AssemblyAngularVelocity = Vector3.zero
+				end
+			end
+		end
+		
+		c()['Running'] = false
+		if not value then
+			break
+		end
+	end
+	c()['Running'] = false
+end
+
+-- ========================================
+-- نظام أمان المركبات (مسترجَع)
+-- ========================================
+local SafeHeight = {
+    MinCharacter = 200,
+    MinVehicle = 200,
+    Emergency = 50,
+    RespawnHeight = 260
+}
+
+task.spawn(function()
+    while task.wait(0) do
+        pcall(function()
+            if not c().UseVehicleForFishing then return end
+            for _, vehicle in pairs(workspace.Vehicles:GetChildren()) do
+                if vehicle:GetAttribute('OwnerUserId') == UserId and vehicle.PrimaryPart then
+                    local currentY = vehicle.PrimaryPart.Position.Y
+                    
+                    for _, part in pairs(vehicle:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            if part.AssemblyLinearVelocity.Magnitude > 100 then
+                                part.AssemblyLinearVelocity = part.AssemblyLinearVelocity.Unit * 100
+                            end
+                            local verticalVelocity = part.AssemblyLinearVelocity.Y
+                            if verticalVelocity > 15 then
+                                part.AssemblyLinearVelocity = Vector3.new(
+                                    part.AssemblyLinearVelocity.X,
+                                    -5,
+                                    part.AssemblyLinearVelocity.Z
+                                )
+                            end
+                            if math.abs(part.AssemblyAngularVelocity.X) > 5 or math.abs(part.AssemblyAngularVelocity.Z) > 5 then
+                                part.AssemblyAngularVelocity = Vector3.new(0, part.AssemblyAngularVelocity.Y, 0)
+                            end
+                        end
+                    end
+                    
+                    local downforce = 15
+                    local maxHeightAboveGround = 8
+                    local rayOrigin = vehicle.PrimaryPart.Position
+                    local rayDirection = Vector3.new(0, -100, 0)
+                    local raycastParams = RaycastParams.new()
+                    raycastParams.FilterDescendantsInstances = {vehicle, Character}
+                    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+                    local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+
+                    if rayResult then
+                        local distanceToGround = (rayOrigin - rayResult.Position).Magnitude
+                        if distanceToGround > maxHeightAboveGround then
+                            for _, part in pairs(vehicle:GetDescendants()) do
+                                if part:IsA("BasePart") then
+                                    part.AssemblyLinearVelocity = Vector3.new(
+                                        part.AssemblyLinearVelocity.X,
+                                        -downforce,
+                                        part.AssemblyLinearVelocity.Z
+                                    )
+                                end
+                            end
+                        end
+                    end
+                    
+                    if currentY < SafeHeight.Emergency then
+                        vehicle:PivotTo(RootPart.CFrame * CFrame.new(0, 10, 0))
+                        for _, part in pairs(vehicle:GetDescendants()) do
+                            if part:IsA("BasePart") then
+                                part.Velocity = Vector3.zero
+                                part.RotVelocity = Vector3.zero
+                                part.AssemblyLinearVelocity = Vector3.zero
+                                part.AssemblyAngularVelocity = Vector3.zero
+                                part.Anchored = true
+                                task.wait(0)
+                                part.Anchored = false
+                            end
+                        end
+                    elseif currentY < SafeHeight.MinVehicle then
+                        local targetPos = Vector3.new(
+                            vehicle.PrimaryPart.Position.X,
+                            SafeHeight.RespawnHeight,
+                            vehicle.PrimaryPart.Position.Z
+                        )
+                        vehicle:PivotTo(CFrame.new(targetPos) * vehicle:GetPivot().Rotation)
+                        for _, part in pairs(vehicle:GetDescendants()) do
+                            if part:IsA("BasePart") then
+                                part.Velocity = Vector3.zero
+                                part.RotVelocity = Vector3.zero
+                                part.AssemblyLinearVelocity = Vector3.zero
+                                part.AssemblyAngularVelocity = Vector3.zero
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+-- نظام أمان الشخصية (مسترجَع)
+task.spawn(function()
+    while task.wait(0) do
+        pcall(function()
+            if not Character or not RootPart then return end
+            if not c().UseVehicleForFishing then return end
+            local currentY = RootPart.Position.Y
+            if currentY < SafeHeight.Emergency then
+                RootPart.Anchored = true
+                RootPart.CFrame = CFrame.new(
+                    RootPart.Position.X,
+                    SafeHeight.RespawnHeight,
+                    RootPart.Position.Z
+                )
+                task.wait(0)
+                RootPart.Anchored = false
+            elseif currentY < SafeHeight.MinCharacter then
+                RootPart.CFrame = CFrame.new(
+                    RootPart.Position.X,
+                    SafeHeight.RespawnHeight,
+                    RootPart.Position.Z
+                )
+                if RootPart.AssemblyLinearVelocity.Y < -50 then
+                    RootPart.AssemblyLinearVelocity = Vector3.new(
+                        RootPart.AssemblyLinearVelocity.X,
+                        0,
+                        RootPart.AssemblyLinearVelocity.Z
+                    )
+                end
+            end
+        end)
+    end
+end)
+
+-- ========================================
+-- دالة الحصول على المركبة أو استدعاؤها (مسترجعة)
+-- ========================================
+function Sf:GetOrSpawnVehicle()
+    local vehicleName = Sf:GetCarFromType(c().VechineType)
+    if not vehicleName then
+        Sf:BuyBikeCrate()
+        task.wait(1)
+        return nil
+    end
+
+    local existingVehicle = nil
+    for _, vehicle in ipairs(workspace.Vehicles:GetChildren()) do
+        if vehicle:GetAttribute('OwnerUserId') == UserId then
+            existingVehicle = vehicle
+            break
+        end
+    end
+
+    if not existingVehicle then
+        local Checker = Sf:GetInfo(vehicleName)
+        if Checker[2] and not Checker[4] and not Checker[5] then
+            Net.get("toggle_equip_item", tostring(Checker[3]))
+            task.wait(0.1)
+        elseif Checker[5] then
+            task.wait(0.5)
+            return nil
+        elseif not Checker[2] then
+            task.wait(0.2)
+            return nil
+        end
+    end
+
+    -- البحث مرة أخرى بعد التجهيز
+    for _, vehicle in ipairs(workspace.Vehicles:GetChildren()) do
+        if vehicle:GetAttribute('OwnerUserId') == UserId then
+            return vehicle
+        end
+    end
+    return nil
+end
+
+-- ========================================
+-- دالة التنقل الذكية (Teleport أو Drive)
+-- ========================================
+function Sf:NavigateTo(destination, useVehicle, value)
+    if useVehicle and c().UseVehicleForFishing then
+        local vehicle = Sf:GetOrSpawnVehicle()
+        if vehicle and vehicle.PrimaryPart then
+            -- قفل المركبة
+            Sf:Ac("lock_vehicle", vehicle, true)
+            
+            -- ركوب المركبة إذا لم يكن جالساً
+            if not Humanoid.Sit then
+                local currentTime = tick()
+                if currentTime - c().LastVehicleTeleport >= 0.5 then
+                    local charLook = RootPart.CFrame.LookVector
+                    local vehicleRotation = CFrame.new(RootPart.Position + Vector3.new(0, 7, 0)) * CFrame.Angles(0, math.atan2(charLook.X, charLook.Z), 0)
+                    vehicle:PivotTo(vehicleRotation)
+                    c().LastVehicleTeleport = currentTime
+                    task.wait(0)
+                end
+                if vehicle.PrimaryPart then
+                    for _, prompt in pairs(vehicle.PrimaryPart:GetDescendants()) do
+                        if prompt:IsA('ProximityPrompt') then
+                            fireproximityprompt(prompt)
+                            task.wait(0)
+                        end
+                    end
+                end
+                local waitCount = 0
+                while not Humanoid.Sit and waitCount < 10 do
+                    task.wait(0)
+                    waitCount = waitCount + 1
+                end
+            end
+
+            if Humanoid.Sit then
+                -- إصلاح تلقائي قبل القيادة
+                if c().AutoRepairVehicle then
+                    local currentHP, maxHP, vehicleUID = Sf:GetVehicleHealth(vehicleName or "BMX")
+                    if currentHP and maxHP then
+                        local hpDifference = maxHP - currentHP
+                        if hpDifference >= 1000 then
+                            Net.get("exit_seat")
+                            local hrp = game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                            if hrp then hrp.CFrame = hrp.CFrame * CFrame.new(-5, 0, 0) end
+                            task.wait(0.05)
+                            if Sf:RepairVehicle(vehicleUID) then
+                                task.wait(0.1)
+                                for _, prompt in pairs(vehicle.PrimaryPart:GetDescendants()) do
+                                    if prompt:IsA('ProximityPrompt') then
+                                        fireproximityprompt(prompt)
+                                        task.wait(0)
+                                    end
+                                end
+                                local waitCount2 = 0
+                                while not Humanoid.Sit and waitCount2 < 10 do
+                                    task.wait(0)
+                                    waitCount2 = waitCount2 + 1
+                                end
+                            end
+                        end
+                    end
+                end
+                
+                if Humanoid.Sit then
+                    Sf:Drive(vehicle, destination, value)
+                    return true
+                end
+            end
+        end
+    end
+    
+    -- الخيار الاحتياطي: استخدام التليفورت
+    Sf:Teleport(destination, value)
+    return false
+end
+
+-- ========================================
+-- إعدادات Pathfinding (مرة واحدة)
+-- ========================================
 do
 	if not c().PathfindingModifierCreater then
 		for _, v in pairs(workspace:GetDescendants()) do
@@ -592,7 +958,7 @@ local LocalPlayer = Players.LocalPlayer
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
 local Window = WindUI:CreateWindow({
-    Title = "Mercy Hub | Fishing Only",
+    Title = "Mercy Hub | Fishing + Vehicles",
     Icon = "rbxassetid://118194721156015",
     Author = "[🔫]-Block Spin | discord.gg/z4x4TE6gGT",
     Folder = "boss ter",
@@ -622,7 +988,6 @@ Window:EditOpenButton({
 })
 
 local CoreGui = game:GetService("CoreGui")
-local UserInputService = game:GetService("UserInputService")
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "WindUI_Toggle"
 ScreenGui.ResetOnSpawn = false
@@ -671,7 +1036,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
 end)
 
 -- ========================================
--- PLAYER TAB
+-- TAB: PLAYER
 -- ========================================
 local PlayerTab = Window:Tab({
 	Title = 'Player',
@@ -793,7 +1158,7 @@ PlayerTab:Toggle({
 })
 
 -- ========================================
--- SERVER TAB
+-- TAB: SERVER
 -- ========================================
 local ServerTab = Window:Tab({
 	Title = 'Server',
@@ -868,7 +1233,7 @@ ServerTab:Button({
 })
 
 -- ========================================
--- FISHING TAB (النظام الوحيد المتبقي)
+-- TAB: FISHING (مع إضافات المركبات)
 -- ========================================
 local FishingTab = Window:Tab({
     Title = 'Fishing',
@@ -890,11 +1255,6 @@ local FishingBaits = {
     {Name = "WormtecPro", Level = 8, Price = 25},
     {Name = "WormtecRegular", Level = 1, Price = 20}
 }
-
-Config.AutoFarmFishing = false
-Config.FishingRod = "Smart Select"
-Config.FishingWormtec = "Smart Select"
-Config.FishingBaitAmount = 1
 
 FishingTab:Section({ Title = "Auto Farm:" })
 
@@ -966,7 +1326,9 @@ FishingTab:Toggle({
                     end
                     
                     if hasRod and hasBait then
-                        Sf:Teleport(Vector3.new(184.753616, 254.942337, -751.416321), Config.AutoFarmFishing)
+                        -- الانتقال إلى موقع الصيد (باستخدام المركبة أو التليفورت)
+                        local fishingSpot = Vector3.new(184.753616, 254.942337, -751.416321)
+                        Sf:NavigateTo(fishingSpot, true, Config.AutoFarmFishing)
                         task.wait(0.01)
                         
                         if rodUid and baitUid then
@@ -1019,6 +1381,7 @@ FishingTab:Toggle({
                             task.wait(0.01)
                         end
                     else
+                        -- بيع الأسماك
                         local fishesToSell = {}
                         local currentItems = PlayerGui:FindFirstChild("Items")
                         if currentItems then
@@ -1039,9 +1402,8 @@ FishingTab:Toggle({
                             local sellBeacon = workspace:FindFirstChild("SellFishBeacon")
                             local touchPart = sellBeacon and sellBeacon:FindFirstChild("TouchPart")
                             if touchPart then
-                                Sf:Teleport(touchPart.Position, Config.AutoFarmFishing)
+                                Sf:NavigateTo(touchPart.Position, true, Config.AutoFarmFishing)
                                 task.wait(0.01)
-                                
                                 for _, fUid in ipairs(fishesToSell) do
                                     Net.get("sell_item", tostring(fUid), 1)
                                     task.wait(0.01)
@@ -1050,6 +1412,7 @@ FishingTab:Toggle({
                             end
                         end
                         
+                        -- حساب المبلغ المطلوب للشراء
                         local baitAmt = Config.FishingBaitAmount or 1
                         local moneyNeeded = 0
                         if not hasRod then
@@ -1063,6 +1426,7 @@ FishingTab:Toggle({
                             end
                         end
                         
+                        -- سحب الفلوس من الصراف
                         while Sf:GetMoney() < moneyNeeded and Config.AutoFarmFishing do
                             local shortestDist = math.huge
                             local atmPos = nil
@@ -1105,7 +1469,7 @@ FishingTab:Toggle({
                                     end
                                 end)
                                 
-                                Sf:Teleport(atmPos, Config.AutoFarmFishing)
+                                Sf:NavigateTo(atmPos, true, Config.AutoFarmFishing)
                                 reached = true
                                 
                                 if (targetAtm and GetAtmIsNotHackedJob(targetAtm)) or not targetAtm then
@@ -1123,8 +1487,9 @@ FishingTab:Toggle({
                             end
                         end
                         
+                        -- الانتقال إلى المتجر
                         local shopPos = Vector3.new(-136.406662, 254.851074, 153.555588)
-                        Sf:Teleport(shopPos, Config.AutoFarmFishing)
+                        Sf:NavigateTo(shopPos, true, Config.AutoFarmFishing)
                         task.wait(0.01)
                         
                         if not hasRod then
@@ -1145,6 +1510,7 @@ FishingTab:Toggle({
     end,
 })
 
+-- إعدادات الصنارة والطُعم
 FishingTab:Dropdown({
     Title = "Select Rod",
     Values = {"Smart Select", "FishingRodUltimate", "FishingRodAdvanced", "FishingRodPro", "FishingRodRegular"},
@@ -1176,6 +1542,56 @@ FishingTab:Slider({
     end,
 })
 
+-- ========================================
+-- إعدادات المركبات (الجديدة في تبويب الصيد)
+-- ========================================
+FishingTab:Section({ Title = "Vehicle Settings:" })
+
+FishingTab:Toggle({
+    Title = "Use Vehicle for Travel",
+    Icon = "car",
+    Type = "Checkbox",
+    Value = false,
+    Callback = function(Value)
+        Config.UseVehicleForFishing = Value
+    end,
+})
+
+FishingTab:Dropdown({
+    Title = "Vehicle Type",
+    Values = {"Bike", "Car"},
+    Value = "Bike",
+    Callback = function(Value)
+        Config.VechineType = Value
+    end,
+})
+
+FishingTab:Slider({
+    Title = "Vehicle Speed",
+    Step = 1,
+    Value = {
+        Min = 10,
+        Max = 350,
+        Default = 60
+    },
+    Callback = function(Value)
+        Config.InstantVechineSpeed = Value
+    end,
+})
+
+FishingTab:Toggle({
+    Title = "Auto Repair Vehicle",
+    Icon = "wrench",
+    Type = "Checkbox",
+    Value = false,
+    Callback = function(Value)
+        Config.AutoRepairVehicle = Value
+    end,
+})
+
+-- ========================================
+-- Auto Equip FishingRod (كما هو)
+-- ========================================
 local autoEquipActive = false 
 local fakeTools = {}
 

@@ -597,7 +597,7 @@ local function CastRod()
         targetY = CLICK_Y
     end
     
-    -- تحديث إحداثيات المكان الفعلي في القائمة تلقائياً عند كل عملية رمي
+    -- تحديث الإحداثيات تلقائياً في القائمة عند الرمي
     UpdateCoordsDisplay(targetX, targetY)
     
     local clickPosition = Vector2.new(targetX, targetY)
@@ -721,7 +721,7 @@ local function createUpdatesFrame(screenGui)
         tLabel.Parent = item
     end
 
-    addLog("2026/07/19 (اليوم)", "• تم إضافة ميزة عرض إحداثيات مكان الرمي تلقائياً في القائمة.")
+    addLog("2026/07/20", "• إضافة ميزة عرض إحداثيات مكان الرمي تلقائياً في القائمة الرئيسية.")
     
     return uFrame
 end
@@ -845,7 +845,7 @@ local function createReportFrame(screenGui)
 end
 
 -- ========================================
--- الواجهة الرسومية المطورة بالكامل
+-- الواجهة الرسومية الأصلية الكاملة
 -- ========================================
 local function originalCode()
     findModules()
@@ -944,7 +944,7 @@ local function originalCode()
     pcBtn.Parent = deviceFrame
     Instance.new("UICorner", pcBtn).CornerRadius = UDim.new(0, 12)
 
-    -- واجهة الكمبيوتر الرئيسية (تم زيادة الارتفاع قليلاً لاستيعاب الإحداثيات)
+    -- واجهة الكمبيوتر الرئيسية
     local mainFrame = Instance.new("Frame")
     mainFrame.Size = UDim2.new(0, 420, 0, 310)
     mainFrame.Position = UDim2.new(0.5, -210, 0.35, 0)
@@ -1102,7 +1102,7 @@ local function originalCode()
     keyDisplay.TextSize = 13
     keyDisplay.Parent = innerFrame
 
-    -- واجهة الجوال الرئيسية (تم زيادة الارتفاع قليلاً لاستيعاب الإحداثيات)
+    -- واجهة الجوال الرئيسية
     local mobileMain = Instance.new("Frame")
     mobileMain.Size = UDim2.new(0, 280, 0, 315)
     mobileMain.Position = UDim2.new(0, 15, 0.35, 0)
@@ -1226,11 +1226,11 @@ local function originalCode()
     mobDiscordBtn.Text = "🔗 نسخ رابط الديسكورد"
     mobDiscordBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     mobDiscordBtn.Font = Enum.Font.GothamBold
-    mobDiscordBtn.TextSize: = 12
+    mobDiscordBtn.TextSize = 12
     mobDiscordBtn.Parent = mobInner
     Instance.new("UICorner", mobDiscordBtn).CornerRadius = UDim.new(0, 8)
 
-    -- ربط الأحداث والفعاليات البرمجية الأصلية
+    -- ربط الأحداث وتشغيل واجهة اختيار الجهاز تلقائياً
     task.delay(2.5, function()
         TweenService:Create(welcomeFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad), {BackgroundTransparency = 1}):Play()
         TweenService:Create(playerImage, TweenInfo.new(0.4, Enum.EasingStyle.Quad), {ImageTransparency = 1}):Play()

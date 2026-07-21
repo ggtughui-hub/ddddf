@@ -25,7 +25,7 @@ textButton.MouseButton1Click:Connect(function()
     end)
     
     if success and targetPart then
-        local remote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Get")
+        local remote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Send")
         
         if remote and remote:IsA("RemoteFunction") then
             remote:InvokeServer("rent_home", targetPart)

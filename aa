@@ -120,7 +120,7 @@ end
 print("bypassed")
 
 -- ==========================================
--- Auto Farm Steakhouse Cook GUI with Toggle
+-- Fixed Steakhouse Auto Farm GUI with Toggle
 -- ==========================================
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
@@ -130,7 +130,6 @@ local LocalPlayer = Players.LocalPlayer
 local Net = require(ReplicatedStorage.Modules.Core.Net)
 local Char = require(ReplicatedStorage.Modules.Core.Char)
 
--- إنشاء واجهة المستخدم (GUI) البسيطة
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "SteakAutoFarmGUI"
 ScreenGui.Parent = CoreGui
@@ -152,7 +151,6 @@ UICorner.Parent = ToggleButton
 
 local autoFarmEnabled = false
 
--- وظيفة زر التشغيل والإيقاف
 ToggleButton.MouseButton1Click:Connect(function()
     autoFarmEnabled = not autoFarmEnabled
     if autoFarmEnabled then
@@ -164,25 +162,36 @@ ToggleButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- حلقة الأوتو فارم الرئيسية
 task.spawn(function()
     while true do
         task.wait(0.5)
         
         if autoFarmEnabled then
-            if LocalPlayer:GetAttribute("Job") == "steakhouse_cook" then
-                local currentTool = Char.get_tool(LocalPlayer)
-                local isHoldingSteak = currentTool and currentTool:GetAttribute("IsCookable")
+            pcall(function()
+                if LocalPlayer:GetAttribute("Job") == "steakhouse_cook" then
+                    local character = LocalPlayer.Character
+                    local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+                    local currentTool = Char.get_tool(LocalPlayer)
+                    
+                    -- التأكد من اسم الـ Steak بدقة حسب التصحيح
+                    local isHoldingSteak = currentTool and (currentTool.Name == "Steak" or currentTool:GetAttribute("IsCookable"))
 
-                if isHoldingSteak then
-                    local freeGrillId = Net.get("get_random_free_grill")
-                    if freeGrillId then
-                        -- يمكنك إضافة كود الحركة هنا للتوجه إلى إحداثيات الشواية
-                        -- ثم إرسال أمر بدء الشواء:
-                        -- Net.send("start_grilling_2", freeGrillId)
+                    if isHoldingSteak and rootPart then
+                        local freeGrillId = Net.get("get_random_free_grill")
+                        if freeGrillId and typeof(freeGrillId) == "Instance" then
+                            -- التحرك إلى الشواية إذا كانت عبارة عن نموذج أو جزء
+                            local grillPart = freeGrillId:IsA("Model") and freeGrillId.PrimaryPart or freeGrillId:FindFirstChildWhichIsA("BasePart")
+                            if grillPart then
+                                rootPart.CFrame = grillPart.CFrame + Vector3.new(0, 3, 0)
+                                task.wait(0.2)
+                                Net.send("start_grilling_2", freeGrillId)
+                            end
+                        elseif freeGrillId then
+                            Net.send("start_grilling_2", freeGrillId)
+                        end
                     end
                 end
-            end
+            end)
         end
     end
 end)

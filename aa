@@ -133,9 +133,9 @@ TextButton.Font = Enum.Font.SourceSansBold
 TextButton.Text = "استئجار المنزل"
 TextButton.Parent = ScreenGui
 
--- حدث الضغط للإرسال المباشر بدون فحص أو انتظار
+-- حدث الضغط للإرسال المباشر
 TextButton.MouseButton1Click:Connect(function()
     local Event = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Get")
-    Event:InvokeServer("rent_home", workspace.Tiles.TrapHouseA)
+    Event:InvokeServer("rent_home", TrapHouseA)
     print("تم إرسال الطلب مباشرة.")
 end)

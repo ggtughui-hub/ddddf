@@ -1,4 +1,14 @@
--- تشغيل الحماية وتخطي الفحص الأمني أولاً
+-- ==========================================
+-- Bybase Protection System
+-- ==========================================
+if getgenv then
+    getgenv().identifyexecutor = nil
+end
+if getfenv then
+    local env = getfenv()
+    env.identifyexecutor = nil
+end
+
 local v_u_1 = {}
 local v2 = game.ReplicatedStorage:WaitForChild("Remotes")
 local v_u_3 = {
@@ -41,10 +51,6 @@ end
 
 function v_u_1.is_connected(p11)
 	return p11:GetAttribute("IsConnected") and true or false
-end
-
-local function v_u_19(p12, p13, p14, p15, ...)
-	return p12(p13, p14, p15, ...)
 end
 
 task.wait(0.1)
@@ -113,42 +119,70 @@ end
 
 print("bypassed")
 
--- إنشاء الواجهة الرسومية وزر الاستئجار
+-- ==========================================
+-- Auto Farm Steakhouse Cook GUI with Toggle
+-- ==========================================
+local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Player = Players.LocalPlayer
+local LocalPlayer = Players.LocalPlayer
 
+local Net = require(ReplicatedStorage.Modules.Core.Net)
+local Char = require(ReplicatedStorage.Modules.Core.Char)
+
+-- إنشاء واجهة المستخدم (GUI) البسيطة
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "RentHouseGui"
-ScreenGui.Parent = Player:WaitForChild("PlayerGui")
+ScreenGui.Name = "SteakAutoFarmGUI"
+ScreenGui.Parent = CoreGui
 
-local TextButton = Instance.new("TextButton")
-TextButton.Name = "RentButton"
-TextButton.Size = UDim2.new(0, 200, 0, 50)
-TextButton.Position = UDim2.new(0.5, -100, 0.8, 0)
-TextButton.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
-TextButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-TextButton.TextSize = 18
-TextButton.Font = Enum.Font.SourceSansBold
-TextButton.Text = "استئجار المنزل"
-TextButton.Parent = ScreenGui
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Name = "ToggleButton"
+ToggleButton.Parent = ScreenGui
+ToggleButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+ToggleButton.Position = UDim2.new(0.1, 0, 0.1, 0)
+ToggleButton.Size = UDim2.new(0, 160, 0, 50)
+ToggleButton.Font = Enum.Font.SourceSansBold
+ToggleButton.Text = "Auto Farm: OFF"
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.TextSize = 18
 
--- حدث الضغط لإرسال طلب الاستئجار مع TrapHouseA
-TextButton.MouseButton1Click:Connect(function()
-    local Event = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Send")
-    local targetObject = workspace:FindFirstChild("TrapHouseA") or workspace:WaitForChild("TrapHouseA", 5)
-    
-    if targetObject then
-        local success, err = pcall(function()
-            Event:InvokeServer("rent_home", targetObject)
-        end)
-        
-        if success then
-            print("تم إرسال طلب rent_home بنجاح وتجاوز الفحص الأمني.")
-        else
-            print("فشل إرسال الطلب:", err)
-        end
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = ToggleButton
+
+local autoFarmEnabled = false
+
+-- وظيفة زر التشغيل والإيقاف
+ToggleButton.MouseButton1Click:Connect(function()
+    autoFarmEnabled = not autoFarmEnabled
+    if autoFarmEnabled then
+        ToggleButton.Text = "Auto Farm: ON"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
     else
-        print("خطأ: لم يتم العثور على عنصر House في الـ Workspace.")
+        ToggleButton.Text = "Auto Farm: OFF"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    end
+end)
+
+-- حلقة الأوتو فارم الرئيسية
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        
+        if autoFarmEnabled then
+            if LocalPlayer:GetAttribute("Job") == "steakhouse_cook" then
+                local currentTool = Char.get_tool(LocalPlayer)
+                local isHoldingSteak = currentTool and currentTool:GetAttribute("IsCookable")
+
+                if isHoldingSteak then
+                    local freeGrillId = Net.get("get_random_free_grill")
+                    if freeGrillId then
+                        -- يمكنك إضافة كود الحركة هنا للتوجه إلى إحداثيات الشواية
+                        -- ثم إرسال أمر بدء الشواء:
+                        -- Net.send("start_grilling_2", freeGrillId)
+                    end
+                end
+            end
+        end
     end
 end)

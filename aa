@@ -1,197 +1,826 @@
--- ==========================================
--- Bybase Protection System
--- ==========================================
-if getgenv then
-    getgenv().identifyexecutor = nil
-end
-if getfenv then
-    local env = getfenv()
-    env.identifyexecutor = nil
-end
-
-local v_u_1 = {}
-local v2 = game.ReplicatedStorage:WaitForChild("Remotes")
-local v_u_3 = {
-	["send"] = v2:WaitForChild("Send"),
-	["get"] = v2:WaitForChild("Get")
-}
-local v_u_4 = {
-	["event"] = 0,
-	["func"] = 0
-}
-local v_u_5 = {}
-local v_u_6 = false
-local v_u_7 = {}
-
-function v_u_1.on_connect(p8)
-	if v_u_6 then
-		p8()
-	else
-		v_u_7[#v_u_7 + 1] = p8
-	end
-end
-
-function v_u_1.hook(p_u_9, p_u_10)
-	if not p_u_10 then
-		error("Function nil for hook " .. p_u_9)
-	end
-	if v_u_6 then
-		if v_u_5[p_u_9] then
-			warn("Overwriting hook \'" .. p_u_9 .. "\'.")
-		else
-			v_u_5[p_u_9] = p_u_10
-		end
-	else
-		v_u_1.on_connect(function()
-			v_u_1.hook(p_u_9, p_u_10)
-		end)
-		return
-	end
-end
-
-function v_u_1.is_connected(p11)
-	return p11:GetAttribute("IsConnected") and true or false
-end
-
-task.wait(0.1)
-
-local v_u_20 = v_u_3.send
-local v_u_21 = v_u_3.send.FireServer
-
-function v_u_1.send(p22, ...)
-	v_u_4.event = v_u_4.event + 1
-	v_u_21(v_u_20, v_u_4.event, p22, ...)
-end
-
-local v_u_23 = v_u_3.get
-local v_u_24 = v_u_3.get.InvokeServer
-
-function v_u_1.get(p25, ...)
-	v_u_4.func = v_u_4.func + 1
-	return v_u_24(v_u_23, v_u_4.func, p25, ...)
-end
-
-task.wait(0.1)
-
-local function v_u_29()
-	v_u_3.send.OnClientEvent:connect(function(p26, ...)
-		if v_u_5[p26] then
-			v_u_5[p26](...)
-		else
-			error("Invalid hook \'" .. p26 .. "\' fired!", 0)
-		end
-	end)
-	
-	function v_u_3.get.OnClientInvoke(p27, ...)
-		if v_u_5[p27] then
-			return v_u_5[p27](...)
-		end
-		error("Invalid hook \'" .. p27 .. "\' invoked!", 0)
-	end
-	
-	if not pcall(function()
-		for v28 = 1, #v_u_7 do
-			v_u_7[v28]()
-		end
-	end) then
-		pcall(function()
-			print("On connect failed for client")
-			v_u_1.send("issue", "On connect failed for client")
-		end)
-	end
-end
-
-function v_u_1.initiate() end
-
-function v_u_1.loaded()
-	function v_u_3.get.OnClientInvoke(p30)
-		if p30 == "connect" then
-			v_u_6 = true
-			v_u_29()
-			return true
-		end
-	end
-	
-	v_u_1.hook("ping", function()
-		return true
-	end)
-end
-
-print("bypassed")
-
--- ==========================================
--- Fixed Steakhouse Auto Farm GUI with Toggle
--- ==========================================
-local CoreGui = game:GetService("CoreGui")
+-- MainScript.client.lua
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local PathfindingService = game:GetService("PathfindingService")
+local HttpService = game:GetService("HttpService")
+
 local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 
-local Net = require(ReplicatedStorage.Modules.Core.Net)
-local Char = require(ReplicatedStorage.Modules.Core.Char)
+-- ========================
+-- 🔒 نظام الحماية (Bypass Protection)
+-- ========================
 
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "SteakAutoFarmGUI"
-ScreenGui.Parent = CoreGui
+local function SetupBypassProtection()
+    pcall(function()
+        -- 1. تعطيل Transition UI (شاشة الانتقال)
+        local RS = game:GetService("ReplicatedStorage")
+        local TransitionModule = require(RS.Modules.Game.UI.TransitionUI)
+        if TransitionModule and TransitionModule.transition then
+            local old_transition = TransitionModule.transition
+            TransitionModule.transition = function(p_in, p_wait, p_out, noLogo)
+                return true -- تخطي الانتقال فوراً
+            end
+            print("✅ Bypass: Transition UI disabled")
+        end
+    end)
 
-local ToggleButton = Instance.new("TextButton")
-ToggleButton.Name = "ToggleButton"
-ToggleButton.Parent = ScreenGui
-ToggleButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-ToggleButton.Position = UDim2.new(0.1, 0, 0.1, 0)
-ToggleButton.Size = UDim2.new(0, 160, 0, 50)
-ToggleButton.Font = Enum.Font.SourceSansBold
-ToggleButton.Text = "Auto Farm: OFF"
-ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleButton.TextSize = 18
+    pcall(function()
+        -- 2. تعطيل Character Creator
+        local RS = game:GetService("ReplicatedStorage")
+        local CharCreator = require(RS.Modules.Game.CharacterCreator.CharacterCreator)
+        if CharCreator then
+            if CharCreator.start then
+                CharCreator.start = function(...)
+                    -- تخطي إنشاء الشخصية
+                    return true
+                end
+            end
+            if CharCreator.initiate then
+                CharCreator.initiate = function(...)
+                    -- تخطي التهيئة
+                    return true
+                end
+            end
+            print("✅ Bypass: Character Creator disabled")
+        end
+    end)
 
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 8)
-UICorner.Parent = ToggleButton
+    pcall(function()
+        -- 3. تعديل ProximityPrompt (المسافات)
+        local ATMFolder = workspace:FindFirstChild("Map")
+        if ATMFolder then
+            ATMFolder = ATMFolder:FindFirstChild("Props")
+            if ATMFolder then
+                ATMFolder = ATMFolder:FindFirstChild("ATMs")
+                if ATMFolder then
+                    for _, descendant in pairs(ATMFolder:GetDescendants()) do
+                        if descendant:IsA("ProximityPrompt") then
+                            descendant.MaxActivationDistance = 25
+                            descendant.HoldDuration = 0.1
+                        end
+                    end
+                    print("✅ Bypass: ATM prompts modified")
+                end
+            end
+        end
+    end)
 
-local autoFarmEnabled = false
+    pcall(function()
+        -- 4. حذف DoorSystem (للتجول الحر)
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:IsA("Model") and (obj.Name == "DoorSystem" or obj.Name == "BasementDoor") then
+                obj:Destroy()
+                print("✅ Bypass: DoorSystem removed")
+            end
+        end
+    end)
 
-ToggleButton.MouseButton1Click:Connect(function()
-    autoFarmEnabled = not autoFarmEnabled
-    if autoFarmEnabled then
-        ToggleButton.Text = "Auto Farm: ON"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-    else
-        ToggleButton.Text = "Auto Farm: OFF"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-    end
-end)
-
-task.spawn(function()
-    while true do
-        task.wait(0.5)
-        
-        if autoFarmEnabled then
-            pcall(function()
-                if LocalPlayer:GetAttribute("Job") == "steakhouse_cook" then
-                    local character = LocalPlayer.Character
-                    local rootPart = character and character:FindFirstChild("HumanoidRootPart")
-                    local currentTool = Char.get_tool(LocalPlayer)
-                    
-                    -- التأكد من اسم الـ Steak بدقة حسب التصحيح
-                    local isHoldingSteak = currentTool and (currentTool.Name == "Steak" or currentTool:GetAttribute("IsCookable"))
-
-                    if isHoldingSteak and rootPart then
-                        local freeGrillId = Net.get("get_random_free_grill")
-                        if freeGrillId and typeof(freeGrillId) == "Instance" then
-                            -- التحرك إلى الشواية إذا كانت عبارة عن نموذج أو جزء
-                            local grillPart = freeGrillId:IsA("Model") and freeGrillId.PrimaryPart or freeGrillId:FindFirstChildWhichIsA("BasePart")
-                            if grillPart then
-                                rootPart.CFrame = grillPart.CFrame + Vector3.new(0, 3, 0)
-                                task.wait(0.2)
-                                Net.send("start_grilling_2", freeGrillId)
-                            end
-                        elseif freeGrillId then
-                            Net.send("start_grilling_2", freeGrillId)
+    pcall(function()
+        -- 5. تعديل Pathfinding Modifiers (للمشي السلس)
+        for _, v in pairs(workspace:GetDescendants()) do
+            if v.Name == "DoorSystem" or v.Name == "BasementDoor" then
+                for _, x in ipairs(v:GetDescendants()) do
+                    if x:IsA('BasePart') then
+                        x.CanCollide = false
+                        if not x:FindFirstChildOfClass("PathfindingModifier") then
+                            local modifier = Instance.new("PathfindingModifier")
+                            modifier.Label = "DoorArea"
+                            modifier.PassThrough = true
+                            modifier.Parent = x
                         end
                     end
                 end
-            end)
+            end
+            if v.Name == "VehicleBlockers" then
+                v:Destroy()
+            end
+        end
+        print("✅ Bypass: Pathfinding modifiers set")
+    end)
+
+    pcall(function()
+        -- 6. حذف المقاعد غير المحمية (لمنع الدخول للسيارات العشوائية)
+        local VehiclesFolder = workspace:FindFirstChild("Vehicles")
+        if VehiclesFolder then
+            local protectedVehicles = {}
+            for _, model in ipairs(VehiclesFolder:GetDescendants()) do
+                if model:IsA("VehicleSeat") and model.Name == "DriverSeat" then
+                    local vehicle = model:FindFirstAncestorOfClass("Model")
+                    if vehicle then
+                        protectedVehicles[vehicle] = true
+                    end
+                end
+            end
+
+            local function isProtectedSeat(seat)
+                local vehicle = seat:FindFirstAncestorOfClass("Model")
+                return vehicle and protectedVehicles[vehicle] == true
+            end
+
+            for _, seat in ipairs(workspace:GetDescendants()) do
+                if seat:IsA("Seat") or seat:IsA("VehicleSeat") then
+                    if not isProtectedSeat(seat) then
+                        seat:Destroy()
+                    end
+                end
+            end
+            print("✅ Bypass: Unprotected seats removed")
+        end
+    end)
+
+    pcall(function()
+        -- 7. حظر Remote "crashed_car"
+        local SendRemote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Send")
+        local oldFireServer = hookfunction(SendRemote.FireServer, function(self, ...)
+            local args = {...}
+            if args[2] == "crashed_car" then
+                return nil
+            end
+            return oldFireServer(self, ...)
+        end)
+        print("✅ Bypass: crashed_car remote blocked")
+    end)
+
+    pcall(function()
+        -- 8. تعطيل مطابقة Version Check
+        local VersionModule = require(ReplicatedStorage.Modules.Core.Version)
+        if VersionModule and VersionModule.check_version then
+            VersionModule.check_version = function()
+                return true
+            end
+            print("✅ Bypass: Version check bypassed")
+        end
+    end)
+
+    pcall(function()
+        -- 9. منع اكتشاف الـ Executor
+        if getgenv then
+            getgenv().identifyexecutor = nil
+        end
+        if getfenv then
+            local env = getfenv()
+            env.identifyexecutor = nil
+        end
+        print("✅ Bypass: Executor detection disabled")
+    end)
+
+    print("🛡️ جميع أنظمة الحماية تم تفعيلها!")
+end
+
+-- ========================
+-- استيراد الموديول المحلي
+-- ========================
+
+local FarmModule = {
+    Config = {
+        JobRequired = "steakhouse_cook",
+        ToolName = "RawSteak",
+        GrillTag = "SteakGrill",
+        FridgeTag = "SteakFridge",
+        DefaultCookTime = 10,
+        DefaultPerfectTime = 6,
+        DefaultPerfectLength = 1.5,
+        WalkSpeed = 16,
+        WalkTimeout = 30,
+        ArrivalDistance = 3,
+        UI = {
+            FarmButtonText = "تشغيل الفارم 🔥",
+            StopButtonText = "إيقاف الفارم ⏹️",
+            StatusText = "الحالة: متوقف",
+            StatusColor = Color3.fromRGB(255, 0, 0)
+        }
+    }
+}
+
+function FarmModule:GetGrills()
+    local grills = {}
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and obj:GetAttribute("GrillType") == "SteakGrill" then
+            table.insert(grills, obj)
+        end
+    end
+    return grills
+end
+
+function FarmModule:GetFridges()
+    local fridges = {}
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and obj:GetAttribute("FridgeType") == "SteakFridge" then
+            table.insert(fridges, obj)
+        end
+    end
+    return fridges
+end
+
+function FarmModule:FindAvailableGrill()
+    local grills = self:GetGrills()
+    for _, grill in pairs(grills) do
+        if grill:GetAttribute("Occupied") == false then
+            return grill
+        end
+    end
+    return nil
+end
+
+-- ========================
+-- متغيرات التحكم
+-- ========================
+
+local FarmRunning = false
+local CurrentGrill = nil
+local CurrentFood = nil
+local CookingTask = nil
+local StatusLabel = nil
+local ToggleButton = nil
+local WalkTask = nil
+local CurrentTarget = nil
+
+local GrillArea = nil
+local FoodModel = nil
+
+-- ========================
+-- دوال المساعدة
+-- ========================
+
+local function GetCharacter()
+    return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+end
+
+local function GetHumanoid()
+    local char = GetCharacter()
+    return char:FindFirstChild("Humanoid")
+end
+
+local function GetHRP()
+    local char = GetCharacter()
+    return char:FindFirstChild("HumanoidRootPart")
+end
+
+local function GetTool(toolName)
+    local char = GetCharacter()
+    for _, tool in pairs(char:GetChildren()) do
+        if tool:IsA("Tool") and tool.Name == toolName then
+            return tool
+        end
+    end
+    return nil
+end
+
+local function IsHoldingCookable()
+    local tool = GetTool(FarmModule.Config.ToolName)
+    if tool and tool:GetAttribute("IsCookable") then
+        return true
+    end
+    return false
+end
+
+local function GetNearestGrill()
+    local hrp = GetHRP()
+    if not hrp then return nil end
+    
+    local nearest = nil
+    local shortestDist = math.huge
+    
+    local grills = FarmModule:GetGrills()
+    for _, grill in pairs(grills) do
+        if grill:GetAttribute("Occupied") == false then
+            local grillPos = grill:GetPivot().Position
+            local dist = (hrp.Position - grillPos).Magnitude
+            if dist < shortestDist then
+                shortestDist = dist
+                nearest = grill
+            end
+        end
+    end
+    
+    return nearest, shortestDist
+end
+
+local function GetGrillArea(grill)
+    return grill:FindFirstChild("GrillArea") or grill:FindFirstChildWhichIsA("BasePart")
+end
+
+local function GetWalkPosition(grill)
+    local area = GetGrillArea(grill)
+    if area then
+        local pos = area.Position
+        local size = area.Size
+        return pos + Vector3.new(0, 0, size.Z/2 + 2)
+    end
+    return grill:GetPivot().Position + Vector3.new(0, 0, 3)
+end
+
+-- ========================
+-- نظام المشي التلقائي
+-- ========================
+
+local function WalkToGrill(grill)
+    local humanoid = GetHumanoid()
+    local hrp = GetHRP()
+    
+    if not humanoid or not hrp then
+        warn("❌ لا يمكن العثور على الشخصية!")
+        return false
+    end
+    
+    local targetPos = GetWalkPosition(grill)
+    local distance = (hrp.Position - targetPos).Magnitude
+    
+    if distance < FarmModule.Config.ArrivalDistance then
+        return true
+    end
+    
+    print("🚶 جاري المشي إلى الشواية... المسافة: " .. math.floor(distance) .. " متر")
+    UpdateUI("المشي إلى الشواية... 🚶", Color3.fromRGB(255, 255, 0))
+    
+    if WalkTask then
+        task.cancel(WalkTask)
+        WalkTask = nil
+    end
+    
+    humanoid.WalkSpeed = FarmModule.Config.WalkSpeed
+    
+    local path = PathfindingService:CreatePath({
+        AgentRadius = 2,
+        AgentHeight = 5,
+        AgentCanJump = true,
+        AgentMaxSlope = 45,
+    })
+    
+    local success, errorMessage = pcall(function()
+        path:ComputeAsync(hrp.Position, targetPos)
+    end)
+    
+    if success and path.Status == Enum.PathStatus.Success then
+        local waypoints = path:GetWaypoints()
+        WalkTask = task.spawn(function()
+            for _, waypoint in pairs(waypoints) do
+                if not FarmRunning then break end
+                if not hrp or not humanoid then break end
+                
+                humanoid:MoveTo(waypoint.Position)
+                humanoid.MoveToFinished:Wait(2)
+            end
+        end)
+        
+        local arrived = false
+        local timeout = FarmModule.Config.WalkTimeout
+        local startTime = tick()
+        
+        while not arrived and FarmRunning and (tick() - startTime) < timeout do
+            task.wait(0.5)
+            local currentDist = (hrp.Position - targetPos).Magnitude
+            if currentDist < FarmModule.Config.ArrivalDistance then
+                arrived = true
+                break
+            end
+        end
+        
+        if WalkTask then
+            task.cancel(WalkTask)
+            WalkTask = nil
+        end
+        
+        if arrived then
+            print("✅ وصلت إلى الشواية!")
+            humanoid:MoveTo(hrp.Position)
+            return true
+        else
+            print("⚠️ لم أتمكن من الوصول خلال المهلة!")
+            return false
+        end
+    else
+        print("⚠️ فشل حساب المسار، استخدام MoveTo مباشرة...")
+        
+        WalkTask = task.spawn(function()
+            humanoid:MoveTo(targetPos)
+            humanoid.MoveToFinished:Wait(2)
+        end)
+        
+        local arrived = false
+        local timeout = FarmModule.Config.WalkTimeout
+        local startTime = tick()
+        
+        while not arrived and FarmRunning and (tick() - startTime) < timeout do
+            task.wait(0.5)
+            local currentDist = (hrp.Position - targetPos).Magnitude
+            if currentDist < FarmModule.Config.ArrivalDistance then
+                arrived = true
+                break
+            end
+        end
+        
+        if WalkTask then
+            task.cancel(WalkTask)
+            WalkTask = nil
+        end
+        
+        if arrived then
+            print("✅ وصلت إلى الشواية!")
+            humanoid:MoveTo(hrp.Position)
+            return true
+        else
+            print("⚠️ لم أتمكن من الوصول!")
+            return false
+        end
+    end
+end
+
+-- ========================
+-- نظام الطهي
+-- ========================
+
+local function StartCooking(grill)
+    if not grill then
+        warn("❌ لا توجد شواية متاحة!")
+        return false
+    end
+    
+    if not IsHoldingCookable() then
+        warn("❌ يجب أن تحمل اللحم أولاً!")
+        return false
+    end
+    
+    if LocalPlayer:GetAttribute("Job") ~= FarmModule.Config.JobRequired then
+        warn("❌ يجب أن تكون طباخاً في مطعم الستيك!")
+        return false
+    end
+    
+    if not WalkToGrill(grill) then
+        warn("❌ فشل الوصول إلى الشواية!")
+        return false
+    end
+    
+    grill:SetAttribute("Occupied", true)
+    CurrentGrill = grill
+    
+    local area = GetGrillArea(grill)
+    if not area then
+        warn("❌ الشواية لا تحتوي على منطقة طهي!")
+        grill:SetAttribute("Occupied", false)
+        return false
+    end
+    
+    local food = Instance.new("Model")
+    food.Name = "CookingFood"
+    
+    local foodPart = Instance.new("Part")
+    foodPart.Size = Vector3.new(0.5, 0.2, 0.5)
+    foodPart.Shape = Enum.PartType.Ball
+    foodPart.Color = Color3.fromRGB(150, 75, 50)
+    foodPart.Material = Enum.Material.SmoothPlastic
+    foodPart.Anchored = true
+    foodPart.CanCollide = false
+    foodPart.Parent = food
+    
+    local grillPos = area.Position + Vector3.new(0, area.Size.Y/2 + 0.3, 0)
+    food:SetPrimaryPartCFrame(CFrame.new(grillPos))
+    food.Parent = grill
+    
+    FoodModel = food
+    CurrentFood = food
+    
+    local cookTime = grill:GetAttribute("CookTime") or FarmModule.Config.DefaultCookTime
+    local perfectTime = grill:GetAttribute("PerfectTime") or FarmModule.Config.DefaultPerfectTime
+    local perfectLength = grill:GetAttribute("PerfectLength") or FarmModule.Config.DefaultPerfectLength
+    
+    print("🍖 بدء الطهي على الشواية: " .. grill.Name)
+    print("⏱️ الوقت الكلي: " .. cookTime .. " ثانية")
+    print("⭐ المنطقة المثالية: " .. perfectTime .. " ± " .. perfectLength)
+    
+    UpdateUI("جاري الطهي... 🔥", Color3.fromRGB(255, 165, 0))
+    
+    local startTime = tick()
+    local perfectStart = perfectTime - perfectLength
+    local perfectEnd = perfectTime + perfectLength
+    
+    CookingTask = task.spawn(function()
+        local elapsed = 0
+        while elapsed < cookTime and FarmRunning do
+            elapsed = tick() - startTime
+            
+            if FoodModel then
+                local part = FoodModel:FindFirstChildWhichIsA("BasePart")
+                if part then
+                    local progress = elapsed / cookTime
+                    local color
+                    if elapsed >= perfectStart and elapsed <= perfectEnd then
+                        color = Color3.fromRGB(255, 215, 0)
+                    elseif elapsed < perfectStart then
+                        color = Color3.fromRGB(200, 100, 50)
+                    else
+                        color = Color3.fromRGB(100, 50, 20)
+                    end
+                    part.Color = color
+                end
+            end
+            
+            local progressPercent = math.floor((elapsed / cookTime) * 100)
+            UpdateUI("الطهي: " .. progressPercent .. "% 🔥", Color3.fromRGB(255, 165, 0))
+            
+            RunService.Heartbeat:Wait()
+        end
+        
+        if FarmRunning then
+            FinishCooking(elapsed, cookTime, perfectStart, perfectEnd)
+        else
+            CancelCooking()
+        end
+    end)
+    
+    return true
+end
+
+local function FinishCooking(elapsed, totalTime, perfectStart, perfectEnd)
+    local status = ""
+    local color = Color3.fromRGB(255, 255, 255)
+    local statusText = ""
+    
+    if elapsed >= perfectStart and elapsed <= perfectEnd then
+        status = "Perfect"
+        statusText = "✨ مثالي!"
+        color = Color3.fromRGB(255, 215, 0)
+        print("⭐ طهي مثالي!")
+    elseif elapsed < perfectStart then
+        status = "Undercooked"
+        statusText = "❌ غير ناضج!"
+        color = Color3.fromRGB(255, 100, 100)
+        print("⚠️ غير ناضج!")
+    else
+        status = "Overcooked"
+        statusText = "🔥 محروق!"
+        color = Color3.fromRGB(255, 0, 0)
+        print("💀 محروق!")
+    end
+    
+    UpdateUI("تم الطهي: " .. statusText, color)
+    task.wait(2)
+    CleanupGrill()
+end
+
+local function CancelCooking()
+    print("⏹️ تم إلغاء الطهي!")
+    UpdateUI("تم الإلغاء ❌", Color3.fromRGB(255, 0, 0))
+    CleanupGrill()
+end
+
+local function CleanupGrill()
+    if FoodModel then
+        FoodModel:Destroy()
+        FoodModel = nil
+    end
+    
+    if CurrentGrill then
+        CurrentGrill:SetAttribute("Occupied", false)
+        CurrentGrill = nil
+    end
+    
+    CurrentFood = nil
+    
+    if CookingTask then
+        task.cancel(CookingTask)
+        CookingTask = nil
+    end
+    
+    if WalkTask then
+        task.cancel(WalkTask)
+        WalkTask = nil
+    end
+    
+    if not FarmRunning then
+        UpdateUI("متوقف ⏹️", Color3.fromRGB(255, 0, 0))
+    end
+end
+
+-- ========================
+-- نظام الفارم الرئيسي
+-- ========================
+
+local function FarmLoop()
+    while FarmRunning do
+        if not IsHoldingCookable() then
+            local tool = GetTool(FarmModule.Config.ToolName)
+            if not tool then
+                local backpack = LocalPlayer:FindFirstChild("Backpack")
+                if backpack then
+                    for _, item in pairs(backpack:GetChildren()) do
+                        if item:IsA("Tool") and item.Name == FarmModule.Config.ToolName then
+                            item.Parent = GetCharacter()
+                            print("✅ تم إمساك اللحم!")
+                            break
+                        end
+                    end
+                end
+            end
+            task.wait(0.5)
+            continue
+        end
+        
+        if not CurrentGrill then
+            local grill, dist = GetNearestGrill()
+            if grill then
+                print("📍 وجدت شواية: " .. grill.Name .. " (المسافة: " .. math.floor(dist) .. " متر)")
+                if StartCooking(grill) then
+                    print("✅ بدأ الطهي!")
+                else
+                    print("❌ فشل بدء الطهي!")
+                    task.wait(2)
+                end
+            else
+                print("⏳ انتظار شواية فارغة...")
+                UpdateUI("انتظار شواية... ⏳", Color3.fromRGB(255, 255, 0))
+                task.wait(2)
+            end
+        end
+        
+        while CurrentGrill and FarmRunning do
+            task.wait(1)
+        end
+        
+        task.wait(0.5)
+    end
+end
+
+-- ========================
+-- واجهة المستخدم (UI)
+-- ========================
+
+local function CreateUI()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "SteakFarmUI"
+    screenGui.Parent = LocalPlayer.PlayerGui
+    
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 220, 0, 140)
+    frame.Position = UDim2.new(0, 10, 0, 10)
+    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    frame.BackgroundTransparency = 0.1
+    frame.BorderSizePixel = 0
+    frame.Parent = screenGui
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = frame
+    
+    ToggleButton = Instance.new("TextButton")
+    ToggleButton.Size = UDim2.new(0, 200, 0, 40)
+    ToggleButton.Position = UDim2.new(0, 10, 0, 10)
+    ToggleButton.Text = FarmModule.Config.UI.FarmButtonText
+    ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    ToggleButton.TextSize = 16
+    ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+    ToggleButton.Parent = frame
+    
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 5)
+    btnCorner.Parent = ToggleButton
+    
+    local stopButton = Instance.new("TextButton")
+    stopButton.Size = UDim2.new(0, 95, 0, 30)
+    stopButton.Position = UDim2.new(0, 10, 0, 60)
+    stopButton.Text = "إيقاف ⏹️"
+    stopButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    stopButton.TextSize = 14
+    stopButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    stopButton.Parent = frame
+    
+    local stopCorner = Instance.new("UICorner")
+    stopCorner.CornerRadius = UDim.new(0, 5)
+    stopCorner.Parent = stopButton
+    
+    stopButton.MouseButton1Click:Connect(function()
+        if FarmRunning then
+            FarmRunning = false
+            UpdateUI("جارٍ الإيقاف... ⏹️", Color3.fromRGB(255, 0, 0))
+            CleanupGrill()
+            if ToggleButton then
+                ToggleButton.Text = FarmModule.Config.UI.FarmButtonText
+                ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+            end
+        end
+    end)
+    
+    local resetButton = Instance.new("TextButton")
+    resetButton.Size = UDim2.new(0, 95, 0, 30)
+    resetButton.Position = UDim2.new(0, 115, 0, 60)
+    resetButton.Text = "إعادة 🔄"
+    resetButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    resetButton.TextSize = 14
+    resetButton.BackgroundColor3 = Color3.fromRGB(255, 165, 0)
+    resetButton.Parent = frame
+    
+    local resetCorner = Instance.new("UICorner")
+    resetCorner.CornerRadius = UDim.new(0, 5)
+    resetCorner.Parent = resetButton
+    
+    resetButton.MouseButton1Click:Connect(function()
+        if FarmRunning then
+            FarmRunning = false
+            UpdateUI("إعادة تعيين... 🔄", Color3.fromRGB(255, 165, 0))
+            CleanupGrill()
+            task.wait(1)
+        end
+        CurrentGrill = nil
+        CurrentFood = nil
+        FarmRunning = false
+        if ToggleButton then
+            ToggleButton.Text = FarmModule.Config.UI.FarmButtonText
+            ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+        end
+        UpdateUI("تم إعادة التعيين ✅", Color3.fromRGB(0, 255, 0))
+        task.wait(1)
+        UpdateUI("متوقف ⏹️", Color3.fromRGB(255, 0, 0))
+    end)
+    
+    ToggleButton.MouseButton1Click:Connect(function()
+        if FarmRunning then
+            FarmRunning = false
+            ToggleButton.Text = FarmModule.Config.UI.FarmButtonText
+            ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+            UpdateUI("متوقف ⏹️", Color3.fromRGB(255, 0, 0))
+            CleanupGrill()
+        else
+            FarmRunning = true
+            ToggleButton.Text = FarmModule.Config.UI.StopButtonText
+            ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+            UpdateUI("جاري التشغيل... 🚀", Color3.fromRGB(0, 255, 0))
+            
+            task.spawn(FarmLoop)
+        end
+    end)
+    
+    StatusLabel = Instance.new("TextLabel")
+    StatusLabel.Size = UDim2.new(0, 200, 0, 20)
+    StatusLabel.Position = UDim2.new(0, 10, 0, 95)
+    StatusLabel.Text = FarmModule.Config.UI.StatusText
+    StatusLabel.TextColor3 = FarmModule.Config.UI.StatusColor
+    StatusLabel.TextSize = 14
+    StatusLabel.BackgroundTransparency = 1
+    StatusLabel.Parent = frame
+    
+    local distLabel = Instance.new("TextLabel")
+    distLabel.Size = UDim2.new(0, 200, 0, 20)
+    distLabel.Position = UDim2.new(0, 10, 0, 115)
+    distLabel.Text = "المسافة: --"
+    distLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    distLabel.TextSize = 12
+    distLabel.BackgroundTransparency = 1
+    distLabel.Parent = frame
+    
+    task.spawn(function()
+        while true do
+            task.wait(1)
+            if FarmRunning and CurrentGrill then
+                local hrp = GetHRP()
+                if hrp then
+                    local dist = (hrp.Position - GetWalkPosition(CurrentGrill)).Magnitude
+                    distLabel.Text = "المسافة: " .. math.floor(dist) .. " متر"
+                end
+            else
+                distLabel.Text = "المسافة: --"
+            end
+        end
+    end)
+    
+    return screenGui
+end
+
+local function UpdateUI(text, color)
+    if StatusLabel then
+        StatusLabel.Text = text
+        StatusLabel.TextColor3 = color
+    end
+end
+
+-- ========================
+-- تهيئة السكربت
+-- ========================
+
+-- 🔒 تفعيل نظام الحماية أولاً
+SetupBypassProtection()
+
+-- إنشاء الواجهة
+CreateUI()
+
+-- مراقبة تغيير الشخصية
+LocalPlayer.CharacterAdded:Connect(function(newChar)
+    Character = newChar
+    if FarmRunning then
+        FarmRunning = false
+        CleanupGrill()
+        UpdateUI("تم إيقاف الفارم (تغيير الشخصية)", Color3.fromRGB(255, 0, 0))
+        if ToggleButton then
+            ToggleButton.Text = FarmModule.Config.UI.FarmButtonText
+            ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
         end
     end
 end)
+
+print("🍽️ سكربت فارم الستيك مع نظام الحماية تم تحميله!")
+print("🚶 سيمشي اللاعب تلقائياً إلى الشواية ويبدأ الطهي.")
+print("🛡️ جميع أنظمة الحماية (Bypass) مفعلة!")
+print("💡 اضغط على 'تشغيل الفارم' للبدء.")

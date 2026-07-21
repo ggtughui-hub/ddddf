@@ -133,7 +133,7 @@ TextButton.Font = Enum.Font.SourceSansBold
 TextButton.Text = "استئجار المنزل"
 TextButton.Parent = ScreenGui
 
--- حدث الضغط للإرسال المباشر
+-- حدث الضغط للإرسال المباشر بدون مسارات
 TextButton.MouseButton1Click:Connect(function()
     local Event = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Get")
     Event:InvokeServer("rent_home", TrapHouseA)

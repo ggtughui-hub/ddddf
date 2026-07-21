@@ -133,18 +133,9 @@ TextButton.Font = Enum.Font.SourceSansBold
 TextButton.Text = "استئجار المنزل"
 TextButton.Parent = ScreenGui
 
--- حدث الضغط لإرسال طلب الاستئجار مع الحماية المضمنة
+-- حدث الضغط للإرسال المباشر على طول
 TextButton.MouseButton1Click:Connect(function()
     local Event = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Get")
-    local targetObject = workspace.TrapHouseB
-    
-    local success, err = pcall(function()
-        Event:InvokeServer("rent_home", targetObject)
-    end)
-    
-    if success then
-        print("تم إرسال طلب rent_home بنجاح وتجاوز الفحص الأمني.")
-    else
-        print("فشل إرسال الطلب:", err)
-    end
+    Event:InvokeServer("rent_home", workspace.TrapHouseA)
+    print("تم إرسال الطلب مباشرة.")
 end)

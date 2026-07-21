@@ -10,7 +10,7 @@ local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 
 -- ========================
--- 🔒 نظام الحماية (Bypass Protection) - يتم تشغيله فوراً
+-- 🔒 نظام الحماية (Bypass Protection)
 -- ========================
 
 local function SetupBypassProtection()
@@ -96,10 +96,10 @@ local function SetupBypassProtection()
 end
 
 -- ========================
--- 🛑 جميع المتغيرات في البداية = false (لا شيء يرسل طلبات)
+-- 🛑 جميع المتغيرات في البداية = false
 -- ========================
 
-local FarmRunning = false  -- 🔴 الفارم موقف
+local FarmRunning = false
 local CurrentGrill = nil
 local CurrentFood = nil
 local CookingTask = nil
@@ -107,15 +107,13 @@ local StatusLabel = nil
 local ToggleButton = nil
 local WalkTask = nil
 local FoodModel = nil
-local isFirstLoad = true  -- لمنع أي طلبات أثناء التحميل
 
 -- ========================
--- 📦 الموديول (لا يرسل أي طلبات إلا عند التشغيل)
+-- 📦 الموديول
 -- ========================
 
 local FarmModule = {
     Config = {
-        JobRequired = "steakhouse_cook",
         ToolName = "RawSteak",
         GrillTag = "SteakGrill",
         FridgeTag = "SteakFridge",
@@ -128,13 +126,12 @@ local FarmModule = {
         UI = {
             FarmButtonText = "▶️ تشغيل الفارم",
             StopButtonText = "⏹️ إيقاف الفارم",
-            StatusText = "⏸️ المتوقف",
+            StatusText = "⏸️ متوقف",
             StatusColor = Color3.fromRGB(255, 255, 255)
         }
     }
 }
 
--- هذه الدوال **لا تُستدعى** إلا بعد الضغط على زر التشغيل
 function FarmModule:GetGrills()
     local grills = {}
     for _, obj in pairs(workspace:GetDescendants()) do
@@ -156,7 +153,7 @@ function FarmModule:FindAvailableGrill()
 end
 
 -- ========================
--- دوال المساعدة (تُستدعى فقط أثناء التشغيل)
+-- دوال المساعدة
 -- ========================
 
 local function GetCharacter()
@@ -184,7 +181,7 @@ local function GetTool(toolName)
 end
 
 local function IsHoldingCookable()
-    if not FarmRunning then return false end  -- 🛑 إذا الفارم موقف، لا ترسل طلبات
+    if not FarmRunning then return false end
     local tool = GetTool(FarmModule.Config.ToolName)
     if tool and tool:GetAttribute("IsCookable") then
         return true
@@ -193,7 +190,7 @@ local function IsHoldingCookable()
 end
 
 local function GetNearestGrill()
-    if not FarmRunning then return nil end  -- 🛑 إذا الفارم موقف، لا ترسل طلبات
+    if not FarmRunning then return nil end
     local hrp = GetHRP()
     if not hrp then return nil end
     
@@ -234,7 +231,7 @@ end
 -- ========================
 
 local function WalkToGrill(grill)
-    if not FarmRunning then return false end  -- 🛑 إذا الفارم موقف، لا تفعل شيئاً
+    if not FarmRunning then return false end
     
     local humanoid = GetHumanoid()
     local hrp = GetHRP()
@@ -337,11 +334,11 @@ local function WalkToGrill(grill)
 end
 
 -- ========================
--- نظام الطهي
+-- نظام الطهي (بدون التحقق من الوظيفة ❌)
 -- ========================
 
 local function StartCooking(grill)
-    if not FarmRunning then return false end  -- 🛑 إذا الفارم موقف، لا تفعل شيئاً
+    if not FarmRunning then return false end
     if not grill then
         UpdateUI("❌ لا توجد شواية!", Color3.fromRGB(255, 0, 0))
         return false
@@ -352,10 +349,7 @@ local function StartCooking(grill)
         return false
     end
     
-    if LocalPlayer:GetAttribute("Job") ~= FarmModule.Config.JobRequired then
-        UpdateUI("❌ وظيفة خاطئة!", Color3.fromRGB(255, 0, 0))
-        return false
-    end
+    -- ✅ تم إزالة التحقق من الوظيفة (Job) تماماً
     
     if not WalkToGrill(grill) then
         UpdateUI("❌ فشل الوصول!", Color3.fromRGB(255, 0, 0))
@@ -488,7 +482,7 @@ local function CleanupGrill()
 end
 
 -- ========================
--- حلقة الفارم الرئيسية (تُشغل فقط عند الضغط على زر التشغيل)
+-- حلقة الفارم الرئيسية
 -- ========================
 
 local function FarmLoop()
@@ -537,7 +531,7 @@ local function FarmLoop()
 end
 
 -- ========================
--- واجهة المستخدم (تُنشأ فوراً لكن لا ترسل طلبات)
+-- واجهة المستخدم
 -- ========================
 
 local function CreateUI()
@@ -558,7 +552,6 @@ local function CreateUI()
     corner.CornerRadius = UDim.new(0, 10)
     corner.Parent = frame
     
-    -- زر التشغيل/الإيقاف
     ToggleButton = Instance.new("TextButton")
     ToggleButton.Size = UDim2.new(0, 200, 0, 40)
     ToggleButton.Position = UDim2.new(0, 10, 0, 10)
@@ -572,7 +565,6 @@ local function CreateUI()
     btnCorner.CornerRadius = UDim.new(0, 5)
     btnCorner.Parent = ToggleButton
     
-    -- زر الإيقاف الطارئ
     local stopButton = Instance.new("TextButton")
     stopButton.Size = UDim2.new(0, 95, 0, 30)
     stopButton.Position = UDim2.new(0, 10, 0, 60)
@@ -598,7 +590,6 @@ local function CreateUI()
         end
     end)
     
-    -- زر إعادة التعيين
     local resetButton = Instance.new("TextButton")
     resetButton.Size = UDim2.new(0, 95, 0, 30)
     resetButton.Position = UDim2.new(0, 115, 0, 60)
@@ -630,17 +621,14 @@ local function CreateUI()
         UpdateUI("⏸️ متوقف", Color3.fromRGB(255, 255, 255))
     end)
     
-    -- زر التشغيل الرئيسي
     ToggleButton.MouseButton1Click:Connect(function()
         if FarmRunning then
-            -- إيقاف الفارم
             FarmRunning = false
             ToggleButton.Text = FarmModule.Config.UI.FarmButtonText
             ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
             UpdateUI("⏹️ متوقف", Color3.fromRGB(255, 255, 255))
             CleanupGrill()
         else
-            -- تشغيل الفارم (هنا فقط يبدأ إرسال الطلبات)
             FarmRunning = true
             ToggleButton.Text = FarmModule.Config.UI.StopButtonText
             ToggleButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
@@ -650,7 +638,6 @@ local function CreateUI()
         end
     end)
     
-    -- شريط الحالة
     StatusLabel = Instance.new("TextLabel")
     StatusLabel.Size = UDim2.new(0, 200, 0, 20)
     StatusLabel.Position = UDim2.new(0, 10, 0, 95)
@@ -675,13 +662,9 @@ end
 -- 🔥 التهيئة النهائية
 -- ========================
 
--- تفعيل نظام الحماية (لا يرسل طلبات للخادم)
 SetupBypassProtection()
-
--- إنشاء الواجهة (لا يرسل طلبات للخادم)
 CreateUI()
 
--- مراقبة تغيير الشخصية
 LocalPlayer.CharacterAdded:Connect(function(newChar)
     Character = newChar
     if FarmRunning then
@@ -696,5 +679,6 @@ LocalPlayer.CharacterAdded:Connect(function(newChar)
 end)
 
 print("🍽️ سكربت الفارم جاهز!")
-print("🛡️ نظام الحماية مفعل (بدون إرسال طلبات)")
+print("🛡️ نظام الحماية مفعل")
+print("❌ لا يتحقق من الوظيفة (Job) نهائياً")
 print("💡 اضغط على 'تشغيل الفارم' لبدء العمل")

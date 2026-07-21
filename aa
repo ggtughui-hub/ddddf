@@ -133,9 +133,11 @@ TextButton.Font = Enum.Font.SourceSansBold
 TextButton.Text = "استئجار المنزل"
 TextButton.Parent = ScreenGui
 
--- حدث الضغط للإرسال المباشر على طول
+-- حدث الضغط لإرسال الطلب مع استهداف TrapHouseA داخل مجلد Tiles
 TextButton.MouseButton1Click:Connect(function()
     local Event = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Get")
-    Event:InvokeServer("rent_home", workspace.TrapHouseA)
-    print("تم إرسال الطلب مباشرة.")
+    local targetHouse = workspace:WaitForChild("Tiles"):WaitForChild("TrapHouseA")
+    
+    Event:InvokeServer("rent_home", targetHouse)
+    print("تم إرسال طلب استئجار TrapHouseA بنجاح.")
 end)

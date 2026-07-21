@@ -133,9 +133,22 @@ TextButton.Font = Enum.Font.SourceSansBold
 TextButton.Text = "استئجار المنزل"
 TextButton.Parent = ScreenGui
 
--- حدث الضغط للإرسال المباشر بدون مسارات
+-- حدث الضغط لإرسال طلب الاستئجار مع TrapHouseA
 TextButton.MouseButton1Click:Connect(function()
-    local Event = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Get")
-    Event:InvokeServer("rent_home", TrapHouseA)
-    print("تم إرسال الطلب مباشرة.")
+    local Event = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Send")
+    local targetObject = workspace:FindFirstChild("TrapHouseA") or workspace:WaitForChild("TrapHouseA", 5)
+    
+    if targetObject then
+        local success, err = pcall(function()
+            Event:InvokeServer("rent_home", targetObject)
+        end)
+        
+        if success then
+            print("تم إرسال طلب rent_home بنجاح وتجاوز الفحص الأمني.")
+        else
+            print("فشل إرسال الطلب:", err)
+        end
+    else
+        print("خطأ: لم يتم العثور على عنصر TrapHouseA في الـ Workspace.")
+    end
 end)

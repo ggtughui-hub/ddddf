@@ -136,7 +136,7 @@ TextButton.Parent = ScreenGui
 -- حدث الضغط لإرسال طلب الاستئجار مع TrapHouseA
 TextButton.MouseButton1Click:Connect(function()
     local Event = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Send")
-    local targetObject = workspace:FindFirstChild("TrapHouseA") or workspace:WaitForChild("TrapHouseA", 5)
+    local targetObject = workspace:FindFirstChild("TrapHouseA") or workspace:WaitForChild("House", 5)
     
     if targetObject then
         local success, err = pcall(function()
@@ -149,6 +149,6 @@ TextButton.MouseButton1Click:Connect(function()
             print("فشل إرسال الطلب:", err)
         end
     else
-        print("خطأ: لم يتم العثور على عنصر TrapHouseA في الـ Workspace.")
+        print("خطأ: لم يتم العثور على عنصر House في الـ Workspace.")
     end
 end)

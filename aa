@@ -8,9 +8,8 @@ local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 local myUsername = LocalPlayer.Name
 
--- طباعة اسم حسابك في الكونسول للتأكد
 print("==============================")
-print(" اسم حسابك الحالي هو: " .. myUsername)
+print("اسم حسابك الحالي هو: " .. myUsername)
 print("==============================")
 
 local espEnabled = false
@@ -55,9 +54,9 @@ end
 local function scanAndApplyESP()
     if not espEnabled then return end
     
-    local myHousingTile = nil
+    local myTargetHouse = nil
     
-    -- البحث عن HousingTile
+    -- البحث عن HousingTile ثم الوصول للبيت بدقة
     for _, tile in ipairs(Workspace:GetDescendants()) do
         if tile.Name == "HousingTile" then
             local exterior = tile:FindFirstChild("Exterior", true)
@@ -67,10 +66,11 @@ local function scanAndApplyESP()
                 local ownerLabel = bbGui and bbGui:FindFirstChild("OwnerLabel")
                 
                 if ownerLabel and ownerLabel:IsA("TextLabel") then
-                    -- مطابقة اسمك مع النص الموجود في OwnerLabel
                     if ownerLabel.Text == myUsername or string.find(ownerLabel.Text, myUsername) then
-                        myHousingTile = tile
-                        print(" تم العثور على بيتك بنجاح عبر OwnerLabel الذي يحمل النص: " .. ownerLabel.Text)
+                        -- هنا بدلاً من اختيار الـ Tile كاملة، نختار مجلد Exterior أو نموذج البيت الأساسي فوقه
+                        -- غالباً يكون Exterior نفسه أو Model البناء داخل الـ Tile
+                        myTargetHouse = exterior.Parent -- أو exterior مباشرة حسب مجسم البيت
+                        print("تم العثور على بيتك بنجاح وتحديد مجسم البيت فقط!")
                         break
                     end
                 end
@@ -78,18 +78,18 @@ local function scanAndApplyESP()
         end
     end
     
-    if myHousingTile then
-        -- عمل ESP للـ HousingTile الخاص بك
-        createHighlight(myHousingTile, COLOR_HOUSE)
+    if myTargetHouse then
+        -- عمل ESP للبيت وحده
+        createHighlight(myTargetHouse, COLOR_HOUSE)
         
-        -- البحث عن أحواض الزراعة التابعة له
-        for _, obj in ipairs(myHousingTile:GetDescendants()) do
+        -- البحث عن أحواض الزراعة التابعة حصرياً لهذا البيت
+        for _, obj in ipairs(myTargetHouse:GetDescendants()) do
             if obj.Name == "FarmingPot" or string.find(obj.Name:lower(), "farmingpot") then
                 createHighlight(obj, COLOR_FARM)
             end
         end
     else
-        print(" لم يتم العثور على بيت يطابق اسمك (" .. myUsername .. ") في أي OwnerLabel داخل الـ HousingTile.")
+        print("لم يتم العثور على بيت يطابق اسمك (" .. myUsername .. ").")
     end
 end
 

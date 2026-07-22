@@ -8,6 +8,11 @@ local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 local myUsername = LocalPlayer.Name
 
+-- طباعة اسم حسابك في الكونسول للتأكد
+print("==============================")
+print(" اسم حسابك الحالي هو: " .. myUsername)
+print("==============================")
+
 local espEnabled = false
 local activeHighlights = {}
 
@@ -52,20 +57,20 @@ local function scanAndApplyESP()
     
     local myHousingTile = nil
     
-    -- 1. البحث أولاً عن HousingTile في الخريطة
+    -- البحث عن HousingTile
     for _, tile in ipairs(Workspace:GetDescendants()) do
         if tile.Name == "HousingTile" then
-            -- 2. البحث عن Exterior ثم OwnerDisplay و OwnerLabel داخله
-            local exterior = tile:FindFirstChild("Exterior", true) -- يبحث في الأبناء والأحفاد
+            local exterior = tile:FindFirstChild("Exterior", true)
             if exterior then
                 local ownerDisplay = exterior:FindFirstChild("OwnerDisplay")
                 local bbGui = ownerDisplay and ownerDisplay:FindFirstChild("BillboardGui")
                 local ownerLabel = bbGui and bbGui:FindFirstChild("OwnerLabel")
                 
                 if ownerLabel and ownerLabel:IsA("TextLabel") then
-                    -- التحقق مما إذا كان النص يتطابق مع اسم حسابك
+                    -- مطابقة اسمك مع النص الموجود في OwnerLabel
                     if ownerLabel.Text == myUsername or string.find(ownerLabel.Text, myUsername) then
                         myHousingTile = tile
+                        print(" تم العثور على بيتك بنجاح عبر OwnerLabel الذي يحمل النص: " .. ownerLabel.Text)
                         break
                     end
                 end
@@ -74,18 +79,17 @@ local function scanAndApplyESP()
     end
     
     if myHousingTile then
-        -- عمل ESP للـ HousingTile الخاص بك (البيت)
+        -- عمل ESP للـ HousingTile الخاص بك
         createHighlight(myHousingTile, COLOR_HOUSE)
         
-        -- البحث عن أحواض الزراعة FarmingPot التابعة حصرياً لهذا HousingTile
+        -- البحث عن أحواض الزراعة التابعة له
         for _, obj in ipairs(myHousingTile:GetDescendants()) do
             if obj.Name == "FarmingPot" or string.find(obj.Name:lower(), "farmingpot") then
                 createHighlight(obj, COLOR_FARM)
             end
         end
-        print("تم العثور على HousingTile الخاص بك وتفعيل الـ ESP بنجاح!")
     else
-        print("لم يتم العثور على HousingTile يحمل اسمك في OwnerLabel.")
+        print(" لم يتم العثور على بيت يطابق اسمك (" .. myUsername .. ") في أي OwnerLabel داخل الـ HousingTile.")
     end
 end
 

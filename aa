@@ -1,49 +1,94 @@
--- ESP Script مع زر تشغيل/إيقاف
+-- ESP Script مع زر تشغيل/إيقاف وزر X
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local playerName = player.Name
 
 -- البحث عن مجلد HousingTile
 local housingFolder = workspace:FindFirstChild("HousingTile")
-
 if not housingFolder then
     warn("لم يتم العثور على مجلد HousingTile!")
     return
 end
 
--- إنشاء زر الـ ESP
+print("تم تحميل السكربت - اسمك: " .. playerName)
+
+-- إنشاء ScreenGui
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "HouseESP_Gui"
 ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = player:WaitForChild("PlayerGui")
 
+-- إنشاء Frame رئيسي
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 160, 0, 60)
+MainFrame.Position = UDim2.new(0, 10, 0, 10)
+MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+MainFrame.BorderSizePixel = 0
+MainFrame.Parent = ScreenGui
+
+-- زوايا مستديرة
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent = MainFrame
+
+-- زر X للإغلاق
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
+CloseButton.Size = UDim2.new(0, 25, 0, 25)
+CloseButton.Position = UDim2.new(1, -30, 0, 5)
+CloseButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.Text = "X"
+CloseButton.TextSize = 16
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.BorderSizePixel = 0
+CloseButton.Parent = MainFrame
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 4)
+closeCorner.Parent = CloseButton
+
+-- زر ESP
 local ESPButton = Instance.new("TextButton")
 ESPButton.Name = "ESPButton"
-ESPButton.Size = UDim2.new(0, 150, 0, 50)
-ESPButton.Position = UDim2.new(0, 10, 0, 10)
+ESPButton.Size = UDim2.new(0, 140, 0, 40)
+ESPButton.Position = UDim2.new(0, 10, 0, 15)
 ESPButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 ESPButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ESPButton.TextSize = 18
+ESPButton.TextSize = 16
 ESPButton.Font = Enum.Font.GothamBold
 ESPButton.Text = "ESP: OFF"
 ESPButton.BorderSizePixel = 0
-ESPButton.Parent = ScreenGui
+ESPButton.Parent = MainFrame
 
--- إضافة حدود للزر
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 8)
-corner.Parent = ESPButton
+local espCorner = Instance.new("UICorner")
+espCorner.CornerRadius = UDim.new(0, 6)
+espCorner.Parent = ESPButton
 
-local stroke = Instance.new("UIStroke")
-stroke.Color = Color3.fromRGB(255, 255, 255)
-stroke.Thickness = 2
-stroke.Parent = ESPButton
-
--- متغير حالة الـ ESP
+-- متغيرات
 local espEnabled = false
 local currentHighlight = nil
 
--- دالة إنشاء/إزالة ESP
+-- دالة البحث عن البيت
+local function findMyHouse()
+    for _, house in pairs(housingFolder:GetChildren()) do
+        local ownerDisplay = house:FindFirstChild("OwnerDisplay")
+        if ownerDisplay then
+            local billboardGui = ownerDisplay:FindFirstChild("BillboardGui")
+            if billboardGui then
+                local ownerLabel = billboardGui:FindFirstChild("OwnerLabel")
+                if ownerLabel and ownerLabel.Text == playerName then
+                    return house
+                end
+            end
+        end
+    end
+    return nil
+end
+
+-- دالة تشغيل/إيقاف ESP
 local function toggleESP()
     espEnabled = not espEnabled
     
@@ -51,52 +96,58 @@ local function toggleESP()
         ESPButton.Text = "ESP: ON"
         ESPButton.BackgroundColor3 = Color3.fromRGB(0, 180, 0)
         
-        -- البحث عن البيت الخاص بك
-        for _, house in pairs(housingFolder:GetChildren()) do
-            local ownerDisplay = house:FindFirstChild("OwnerDisplay")
-            if ownerDisplay then
-                local billboardGui = ownerDisplay:FindFirstChild("BillboardGui")
-                if billboardGui then
-                    local ownerLabel = billboardGui:FindFirstChild("OwnerLabel")
-                    if ownerLabel and ownerLabel.Text == playerName then
-                        -- إزالة Highlight قديم
-                        if currentHighlight then
-                            currentHighlight:Destroy()
-                        end
-                        
-                        -- إنشاء Highlight جديد
-                        local highlight = Instance.new("Highlight")
-                        highlight.Name = "HouseESP"
-                        highlight.Adornee = house
-                        highlight.FillColor = Color3.fromRGB(0, 255, 0)
-                        highlight.OutlineColor = Color3.fromRGB(255, 255, 0)
-                        highlight.FillTransparency = 0.4
-                        highlight.OutlineTransparency = 0
-                        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                        highlight.Parent = house
-                        currentHighlight = highlight
-                        
-                        print("تم تفعيل ESP على بيتك!")
-                        break
-                    end
-                end
+        local myHouse = findMyHouse()
+        if myHouse then
+            -- إزالة Highlight قديم
+            if currentHighlight then
+                currentHighlight:Destroy()
             end
+            
+            -- إنشاء Highlight جديد
+            local highlight = Instance.new("Highlight")
+            highlight.Name = "HouseESP"
+            highlight.Adornee = myHouse
+            highlight.FillColor = Color3.fromRGB(0, 255, 0)
+            highlight.OutlineColor = Color3.fromRGB(255, 255, 0)
+            highlight.FillTransparency = 0.4
+            highlight.OutlineTransparency = 0
+            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            highlight.Parent = myHouse
+            currentHighlight = highlight
+            
+            print("✅ تم تفعيل ESP على بيتك!")
+        else
+            warn(" لم يتم العثور على بيتك!")
+            ESPButton.Text = "ESP: OFF"
+            ESPButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+            espEnabled = false
         end
     else
         ESPButton.Text = "ESP: OFF"
         ESPButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
         
-        -- إزالة الـ ESP
         if currentHighlight then
             currentHighlight:Destroy()
             currentHighlight = nil
         end
-        print("تم إيقاف ESP")
+        print("❌ تم إيقاف ESP")
     end
 end
 
--- ربط الزر بالدالة
+-- زر ESP
 ESPButton.MouseButton1Click:Connect(toggleESP)
 
-print("تم تحميل سكربت ESP - اسم حسابك: " .. playerName)
-print("اضغط على الزر في أعلى يسار الشاشة لتشغيل الـ ESP")
+-- زر X للإغلاق النهائي
+CloseButton.MouseButton1Click:Connect(function()
+    -- إزالة الـ Highlight إذا كان موجود
+    if currentHighlight then
+        currentHighlight:Destroy()
+    end
+    
+    -- إزالة الـ GUI كامل
+    ScreenGui:Destroy()
+    
+    print("🗑️ تم إغلاق السكربت نهائياً")
+end)
+
+print("🎮 السكربت جاهز! استخدم الزر في أعلى الشاشة")

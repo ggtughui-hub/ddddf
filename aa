@@ -54,40 +54,42 @@ end
 local function scanAndApplyESP()
     if not espEnabled then return end
     
-    local myHouse = nil
+    local myTargetHouse = nil
     
-    -- البحث داخل عناصر المنطقة عما يخص الـ House والـ OwnerLabel
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj.Name == "House" or string.find(obj.Name:lower(), "house") then
-            local exterior = obj:FindFirstChild("Exterior", true)
-            if exterior then
-                local ownerDisplay = exterior:FindFirstChild("OwnerDisplay")
-                local bbGui = ownerDisplay and ownerDisplay:FindFirstChild("BillboardGui")
-                local ownerLabel = bbGui and bbGui:FindFirstChild("OwnerLabel")
-                
-                if ownerLabel and ownerLabel:IsA("TextLabel") then
-                    if ownerLabel.Text == myUsername or string.find(ownerLabel.Text, myUsername) then
-                        myHouse = obj -- هذا هو بيتك المحدد
-                        print("تم العثور على بيتك بنجاح!")
-                        break
+    -- 1. البحث حصرياً داخل كل HousingTile في الخريطة
+    for _, tile in ipairs(Workspace:GetDescendants()) do
+        if tile.Name == "HousingTile" then
+            -- 2. البحث عن House بداخله
+            local houseModel = tile:FindFirstChild("House")
+            if houseModel then
+                -- 3. اتباع المسار الدقيق الموضح في الصورة للوصول إلى OwnerLabel
+                for _, descendant in ipairs(houseModel:GetDescendants()) do
+                    if descendant.Name == "OwnerLabel" and descendant:IsA("TextLabel") then
+                        -- التحقق من مطابقة اسمك مع النص داخل الـ OwnerLabel
+                        if descendant.Text == myUsername or string.find(descendant.Text, myUsername) then
+                            myTargetHouse = houseModel -- تحديد نموذج الـ House الخاص بك بالكامل
+                            print("تم العثور على بيتك بنجاح داخل الـ HousingTile!")
+                            break
+                        end
                     end
                 end
             end
+            if myTargetHouse then break end
         end
     end
     
-    if myHouse then
-        -- عمل ESP للبيت الخاص بك فقط
-        createHighlight(myHouse, COLOR_HOUSE)
+    if myTargetHouse then
+        -- عمل ESP للبيت الخاص بك فقط (مجلد House)
+        createHighlight(myTargetHouse, COLOR_HOUSE)
         
-        -- البحث عن أحواض الزراعة التابعة لبيتك فقط
-        for _, pot in ipairs(myHouse:GetDescendants()) do
-            if pot.Name == "FarmingPot" or string.find(pot.Name:lower(), "farmingpot") then
-                createHighlight(pot, COLOR_FARM)
+        -- البحث عن أحواض الزراعة التابعة لبيتك فقط وتلوينها بالبرتقالي
+        for _, obj in ipairs(myTargetHouse:GetDescendants()) do
+            if obj.Name == "FarmingPot" or string.find(obj.Name:lower(), "farmingpot") then
+                createHighlight(obj, COLOR_FARM)
             end
         end
     else
-        print("لم يتم العثور على بيت يطابق اسمك (" .. myUsername .. ").")
+        print("لم يتم العثور على بيت يطابق اسمك (" .. myUsername .. ") داخل أي HousingTile.")
     end
 end
 
@@ -112,7 +114,7 @@ local UICorner = Instance.new("UICorner")
 UICorner.CornerRadius = UDim.new(0, 8)
 UICorner.Parent = ToggleButton
 
--- زر الإغلاق (X) لإزالة السكربت بالكامل
+-- زر الإغلاق (X) لحذف السكربت نهائياً
 local CloseButton = Instance.new("TextButton")
 CloseButton.Name = "CloseButton"
 CloseButton.Parent = ScreenGui
@@ -144,7 +146,7 @@ ToggleButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- حدث زر الإغلاق (حذف الـ ESP والواجهة تماماً)
+-- حدث زر الإغلاق (حذف الـ ESP والواجهة نهائياً)
 CloseButton.MouseButton1Click:Connect(function()
     clearESP()
     ScreenGui:Destroy()

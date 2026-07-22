@@ -1,4 +1,3 @@
--- التأكد من عدم تكرار تشغيل الواجهة إذا تم تنفيذ السكربت مرتين
 if game.CoreGui:FindFirstChild("MyESP_GUI") then
     game.CoreGui.MyESP_GUI:Destroy()
 end
@@ -8,11 +7,15 @@ local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 local myUsername = LocalPlayer.Name
+local myUserId = tostring(LocalPlayer.UserId)
 
 local espEnabled = false
 local highlights = {}
 
--- إنشاء واجهة المستخدم (GUI) والزر
+print("--- سكربت ESP يعمل ---")
+print("اسمك: " + myUsername)
+
+-- إنشاء واجهة المستخدم (GUI)
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "MyESP_GUI"
 ScreenGui.Parent = CoreGui
@@ -32,7 +35,6 @@ local UICorner = Instance.new("UICorner")
 UICorner.CornerRadius = UDim.new(0, 8)
 UICorner.Parent = ToggleButton
 
--- دالة لإنشاء الـ ESP وتخزينه لحذفه لاحقاً
 local function createESP(object, fillColor, outlineColor)
     if not object:FindFirstChild("CustomESP_Highlight") then
         local highlight = Instance.new("Highlight")
@@ -47,7 +49,6 @@ local function createESP(object, fillColor, outlineColor)
     end
 end
 
--- دالة مسح الـ ESP بالكامل عند الإطفاء
 local function clearESP()
     for _, highlight in ipairs(highlights) do
         if highlight and highlight.Parent then
@@ -56,7 +57,6 @@ local function clearESP()
     end
     highlights = {}
     
-    -- تنظيف احتياطي لأي هايلايت قديم بقبي الأثر
     for _, obj in ipairs(Workspace:GetDescendants()) do
         local h = obj:FindFirstChild("CustomESP_Highlight")
         if h then
@@ -65,42 +65,58 @@ local function clearESP()
     end
 end
 
--- دالة فحص وتطبيق الـ ESP
 local function scanAndApplyESP()
     if not espEnabled then return end
     
     for _, obj in ipairs(Workspace:GetDescendants()) do
         if not espEnabled then break end
         
-        if obj.Name == "HousingTile" then
+        -- فحص البيوت (HousingTile) بدقة أكبر
+        if obj.Name == "HousingTile" or string.find(obj.Name:lower(), "house") or string.find(obj.Name:lower(), "plot") then
             local isMyHouse = false
+            
             pcall(function()
-                if obj:GetAttribute("Owner") == myUsername or obj.Name == myUsername or (obj:FindFirstChild("Owner") and obj.Owner.Value == myUsername) then
+                -- التحقق من الـ Attributes
+                for _, attr in pairs({obj:GetAttributes()}) do
+                    -- إذا وجدنا اسمنا أو الـ ID مخزن كـ Attribute
+                    for _, v in pairs(attr) do
+                        if tostring(v) == myUsername or tostring(v) == myUserId then
+                            isMyHouse = true
+                        end
+                    end
+                end
+                
+                -- التحقق من الخصائص المباشرة أو القيم الداخلية
+                if obj.Name == myUsername or obj.Name == myUserId then
                     isMyHouse = true
                 end
             end)
             
+            -- فحص الأبناء والـ Values للبحث عن اسمك أو رقمك
             if not isMyHouse then
                 for _, descendant in ipairs(obj:GetDescendants()) do
-                    if descendant:IsA("StringValue") and descendant.Value == myUsername then
-                        isMyHouse = true
-                        break
+                    if descendant:IsA("StringValue") or descendant:IsA("IntValue") or descendant:IsA("NumberValue") then
+                        if tostring(descendant.Value) == myUsername or tostring(descendant.Value) == myUserId then
+                            isMyHouse = true
+                            break
+                        end
                     end
                 end
             end
 
             if isMyHouse then
-                createESP(obj, Color3.fromRGB(0, 255, 0), Color3.fromRGB(255, 255, 255))
+                createESP(obj, Color3.fromRGB(0, 255, 0), Color3.fromRGB(255, 255, 255)) -- أخضر لبيتك
             end
         end
 
-        if obj.Name == "FarmingPot" or obj.Name == "FarmingPresets" or obj.Name == "FarmingPots" or string.find(obj.Name:lower(), "farmingpot") then
-            createESP(obj, Color3.fromRGB(255, 165, 0), Color3.fromRGB(255, 255, 255))
+        -- فحص أحواض الزراعة (تأكدنا من فلترتها لتكون دقيقة)
+        if obj.Name == "FarmingPot" or obj.Name == "FarmingPots" or string.find(obj.Name:lower(), "farmingpot") then
+            -- نتحقق إذا كان الحوض يخصك أو يقع ضمن بيتك (اختياري، حالياً يحدد أحواض الزراعة بشكل عام أو يمكن تخصيصها)
+            createESP(obj, Color3.fromRGB(255, 165, 0), Color3.fromRGB(255, 255, 255)) -- برتقالي للزرع
         end
     end
 end
 
--- حدث الضغط على الزر للتشغيل والإطفاء
 ToggleButton.MouseButton1Click:Connect(function()
     espEnabled = not espEnabled
     
@@ -112,19 +128,5 @@ ToggleButton.MouseButton1Click:Connect(function()
         ToggleButton.Text = "ESP: OFF"
         ToggleButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
         clearESP()
-    end
-end)
-
--- مراقبة العناصر الجديدة فقط في حال كان الـ ESP شغّالاً
-Workspace.DescendantAdded:Connect(function(obj)
-    if not espEnabled then return end
-    
-    if obj.Name == "HousingTile" or string.find(obj.Name:lower(), "farmingpot") then
-        task.spawn(function()
-            task.wait(0.5) -- انتظار حتى يتم تحميل محتويات العنصر بالكامل
-            if espEnabled then
-                scanAndApplyESP()
-            end
-        end)
     end
 end)

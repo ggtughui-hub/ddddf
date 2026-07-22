@@ -1,165 +1,276 @@
-if game.CoreGui:FindFirstChild("MyESP_GUI") then
-    game.CoreGui.MyESP_GUI:Destroy()
-end
+-- ==============================================
+-- سكربت ESP للبيت الخاص بك (HousingTile مجلد)
+-- ==============================================
 
-local Players = game:GetService("Players")
-local Workspace = game:GetService("Workspace")
-local CoreGui = game:GetService("CoreGui")
-local LocalPlayer = Players.LocalPlayer
-local myUsername = LocalPlayer.Name
+local player = game.Players.LocalPlayer
+local username = player.Name  -- اسم حسابك في روبلوكس
 
-print("==============================")
-print("اسم حسابك الحالي هو: " .. myUsername)
-print("==============================")
+-- متغيرات التحكم
+local espEnabled = true
+local espObjects = {}
+local guiParent = nil
+local housingFolder = nil
 
-local espEnabled = false
-local activeHighlights = {}
-
--- الألوان
-local COLOR_HOUSE = Color3.fromRGB(0, 255, 0)     -- أخضر للبيت
-local COLOR_FARM = Color3.fromRGB(255, 140, 0)     -- برتقالي للأحواض
-local COLOR_OUTLINE = Color3.fromRGB(255, 255, 255) -- أبيض للأطراف
-
-local function createHighlight(target, fillColor)
-    if target and not target:FindFirstChild("CustomESP_HL") then
-        local hl = Instance.new("Highlight")
-        hl.Name = "CustomESP_HL"
-        hl.Adornee = target
-        hl.FillColor = fillColor
-        hl.OutlineColor = COLOR_OUTLINE
-        hl.FillTransparency = 0.4
-        hl.OutlineTransparency = 0
-        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-        hl.Parent = target
-        table.insert(activeHighlights, hl)
-    end
-end
-
-local function clearESP()
-    for _, hl in ipairs(activeHighlights) do
-        if hl and hl.Parent then
-            hl:Destroy()
-        end
-    end
-    activeHighlights = {}
+-- ==============================================
+-- 1️⃣ إنشاء واجهة المستخدم (الأزرار)
+-- ==============================================
+local function createUI()
+    -- إنشاء ScreenGui
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "ESP_Menu"
+    screenGui.Parent = player.PlayerGui
     
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        local h = obj:FindFirstChild("CustomESP_HL")
-        if h then
-            h:Destroy()
+    guiParent = screenGui
+    
+    -- الإطار الرئيسي (خلفية الأزرار)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 200, 0, 50)
+    frame.Position = UDim2.new(0.5, -100, 0.9, 0)  -- في أسفل المنتصف
+    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    frame.BackgroundTransparency = 0.2
+    frame.BorderSizePixel = 0
+    frame.Parent = screenGui
+    
+    -- زوايا مدورة
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = frame
+    
+    -- 🔘 زر ESP (تشغيل/إيقاف)
+    local espButton = Instance.new("TextButton")
+    espButton.Size = UDim2.new(0, 140, 0, 40)
+    espButton.Position = UDim2.new(0, 10, 0, 5)
+    espButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+    espButton.Text = "🟢 ESP ON"
+    espButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    espButton.TextSize = 18
+    espButton.Font = Enum.Font.GothamBold
+    espButton.Parent = frame
+    
+    -- زوايا مدورة للزر
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 8)
+    btnCorner.Parent = espButton
+    
+    -- ❌ زر إغلاق (X)
+    local closeButton = Instance.new("TextButton")
+    closeButton.Size = UDim2.new(0, 40, 0, 40)
+    closeButton.Position = UDim2.new(0, 155, 0, 5)
+    closeButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    closeButton.Text = "✕"
+    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeButton.TextSize = 24
+    closeButton.Font = Enum.Font.GothamBold
+    closeButton.Parent = frame
+    
+    local closeCorner = Instance.new("UICorner")
+    closeCorner.CornerRadius = UDim.new(0, 8)
+    closeCorner.Parent = closeButton
+    
+    -- ==============================================
+    -- 2️⃣ وظائف الأزرار
+    -- ==============================================
+    
+    -- زر ESP: تشغيل/إيقاف
+    espButton.MouseButton1Click:Connect(function()
+        espEnabled = not espEnabled
+        
+        if espEnabled then
+            espButton.Text = "🟢 ESP ON"
+            espButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+            updateESP()  -- إعادة تشغيل الـ ESP
+        else
+            espButton.Text = "🔴 ESP OFF"
+            espButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+            clearESP()   -- إزالة الـ ESP
         end
-    end
+    end)
+    
+    -- زر الإغلاق (X): يوقف السكربت نهائياً
+    closeButton.MouseButton1Click:Connect(function()
+        clearESP()
+        screenGui:Destroy()  -- حذف الواجهة
+        espEnabled = false
+        print("❌ تم إيقاف السكربت نهائياً")
+    end)
+    
+    return screenGui
 end
 
-local function scanAndApplyESP()
+-- ==============================================
+-- 3️⃣ وظائف ESP
+-- ==============================================
+
+-- إنشاء إطار ESP حول البيت
+local function createESPBox(targetPart)
+    if not targetPart or not targetPart.Parent then return end
+    
+    -- إطار ثلاثي الأبعاد (BoxHandleAdornment)
+    local box = Instance.new("BoxHandleAdornment")
+    box.Name = "ESP_Box"
+    box.Size = targetPart.Size + Vector3.new(0.5, 0.5, 0.5)
+    box.Adornee = targetPart
+    box.Color3 = Color3.fromRGB(0, 255, 100)  -- أخضر زاهي
+    box.Transparency = 0.3
+    box.ZIndex = 10
+    box.AlwaysOnTop = true
+    box.Parent = targetPart
+    
+    -- Highlight عشان يبرز أكثر
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "ESP_Highlight"
+    highlight.Adornee = targetPart
+    highlight.FillColor = Color3.fromRGB(0, 255, 100)
+    highlight.FillTransparency = 0.5
+    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+    highlight.OutlineTransparency = 0.1
+    highlight.Parent = targetPart
+    
+    -- حفظ في القائمة
+    table.insert(espObjects, box)
+    table.insert(espObjects, highlight)
+    
+    print("✅ تم تفعيل ESP على البيت: " .. targetPart.Name)
+end
+
+-- مسح كل الـ ESP
+local function clearESP()
+    for _, obj in pairs(espObjects) do
+        if obj and obj.Parent then
+            obj:Destroy()
+        end
+    end
+    espObjects = {}
+end
+
+-- ==============================================
+-- 4️⃣ الوظيفة الرئيسية: البحث عن البيت الخاص بك
+-- ==============================================
+local function updateESP()
+    clearESP()  -- نمسح القديم
+    
     if not espEnabled then return end
     
-    local myTargetHouse = nil
+    -- نبحث عن مجلد HousingTile في الـ Workspace
+    housingFolder = workspace:FindFirstChild("HousingTile")
     
-    -- البحث داخل كل HousingTile في العالم
-    for _, tile in ipairs(Workspace:GetDescendants()) do
-        if tile.Name == "HousingTile" then
-            -- البحث عن OwnerLabel داخل BillboardGui الخاص بهذا الـ Tile
-            for _, desc in ipairs(tile:GetDescendants()) do
-                if desc.Name == "OwnerLabel" and desc:IsA("TextLabel") then
-                    -- التحقق من مطابقة اسمك تماماً أو احتوائه على اسمك
-                    if desc.Text == myUsername or string.find(desc.Text, myUsername) then
-                        -- الصعود من الـ OwnerLabel للوصول إلى مجلد House أو Exterior الرئيسي للبيت
-                        -- المسار: OwnerLabel -> BillboardGui -> OwnerDisplay -> Exterior -> TrapHouse2 -> House
-                        local current = desc.Parent
-                        while current and current ~= tile do
-                            if current.Name == "House" then
-                                myTargetHouse = current
-                                break
-                            end
-                            current = current.Parent
-                        end
-                        
-                        -- إن لم يجد مجلد House، نأخذ الأب المباشر للـ Exterior أو الـ Tile نفسه
-                        if not myTargetHouse then
-                            myTargetHouse = tile:FindFirstChild("House") or tile
-                        end
-                        
-                        print("تم العثور على بيتك بنجاح عبر BillboardGui الخاص بك!")
-                        break
-                    end
-                end
+    if not housingFolder then
+        warn("⚠️ ما لقيت مجلد HousingTile في الـ Workspace!")
+        return
+    end
+    
+    if not housingFolder:IsA("Folder") and not housingFolder:IsA("Model") then
+        warn("⚠️ HousingTile مو مجلد! نوعه: " .. housingFolder.ClassName)
+        return
+    end
+    
+    -- نجيب كل الأطفال داخل المجلد
+    local houses = housingFolder:GetChildren()
+    
+    if #houses == 0 then
+        warn("⚠️ مجلد HousingTile فاضي! ما فيه بيوت")
+        return
+    end
+    
+    print("🔍 جاري البحث عن بيتك بين " .. #houses .. " بيوت...")
+    
+    local found = false
+    
+    -- نفحص كل قطعة في المجلد
+    for _, house in pairs(houses) do
+        -- نتأكد إنها قطعة (BasePart)
+        if house:IsA("BasePart") then
+            local ownerName = house.Name  -- اسم القطعة = اسم صاحب البيت
+            
+            print("   - بيت: " .. ownerName)
+            
+            -- إذا كان اسم القطعة يساوي اسم حسابك
+            if ownerName == username then
+                print("✅✅✅ لقيت بيتك! 🎉")
+                createESPBox(house)
+                found = true
+                break  -- نوقف البحث بما إننا لقينا البيت
             end
-            if myTargetHouse then break end
         end
     end
     
-    if myTargetHouse then
-        -- تطبيق ESP على البيت
-        createHighlight(myTargetHouse, COLOR_HOUSE)
-        
-        -- تطبيق ESP على أحواض الزراعة التابعة له
-        for _, obj in ipairs(myTargetHouse:GetDescendants()) do
-            if obj.Name == "FarmingPot" or string.find(obj.Name:lower(), "farmingpot") then
-                createHighlight(obj, COLOR_FARM)
-            end
-        end
-    else
-        print("لم يتم العثور على BillboardGui يطابق اسمك (" .. myUsername .. ") داخل أي HousingTile.")
+    if not found then
+        print("❌ ما لقيت بيت باسم: " .. username)
+        print("💡 تأكد من اسم حسابك: " .. username)
+        print("💡 وتأكد إن البيت موجود في مجلد HousingTile")
     end
 end
 
--- واجهة المستخدم (GUI)
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "MyESP_GUI"
-ScreenGui.Parent = CoreGui
+-- ==============================================
+-- 5️⃣ مراقبة التغييرات
+-- ==============================================
 
--- زر التشغيل والإطفاء
-local ToggleButton = Instance.new("TextButton")
-ToggleButton.Name = "ToggleButton"
-ToggleButton.Parent = ScreenGui
-ToggleButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-ToggleButton.Position = UDim2.new(0.05, 0, 0.1, 0)
-ToggleButton.Size = UDim2.new(0, 160, 0, 50)
-ToggleButton.Font = Enum.Font.SourceSansBold
-ToggleButton.Text = "ESP: OFF"
-ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleButton.TextSize = 20
+-- نشغل الواجهة
+createUI()
 
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 8)
-UICorner.Parent = ToggleButton
+-- ننتظر شوية عشان الـ Workspace يتحمل
+task.wait(1.5)
 
--- زر الإغلاق (X) لحذف السكربت نهائياً
-local CloseButton = Instance.new("TextButton")
-CloseButton.Name = "CloseButton"
-CloseButton.Parent = ScreenGui
-CloseButton.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
-CloseButton.Position = UDim2.new(0.05, 165, 0.1, 0)
-CloseButton.Size = UDim2.new(0, 50, 0, 50)
-CloseButton.Font = Enum.Font.SourceSansBold
-CloseButton.Text = "X"
-CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseButton.TextSize = 22
+-- أول تشغيل
+print("🚀 بدء البحث عن البيت الخاص بك...")
+print("👤 اسم حسابك: " .. username)
+updateESP()
 
-local UICorner2 = Instance.new("UICorner")
-UICorner2.CornerRadius = UDim.new(0, 8)
-UICorner2.Parent = CloseButton
-
--- حدث التشغيل والإطفاء
-ToggleButton.MouseButton1Click:Connect(function()
-    espEnabled = not espEnabled
-    
-    if espEnabled then
-        ToggleButton.Text = "ESP: ON"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-        clearESP()
-        scanAndApplyESP()
-    else
-        ToggleButton.Text = "ESP: OFF"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-        clearESP()
+-- مراقبة إذا أضيف مجلد HousingTile جديد
+workspace.ChildAdded:Connect(function(child)
+    if child.Name == "HousingTile" and (child:IsA("Folder") or child:IsA("Model")) then
+        print("📁 تم إضافة مجلد HousingTile جديد")
+        task.wait(0.5)
+        updateESP()
     end
 end)
 
--- حدث زر الإغلاق (حذف الواجهة والـ ESP نهائياً)
-CloseButton.MouseButton1Click:Connect(function()
-    clearESP()
-    ScreenGui:Destroy()
-    print("تم إغلاق وإزالة السكربت بالكامل.")
+-- مراقبة إذا أضيف بيت جديد داخل المجلد
+local function watchHousingFolder()
+    if not housingFolder then return end
+    
+    housingFolder.ChildAdded:Connect(function(child)
+        if child:IsA("BasePart") then
+            print("🏠 تم إضافة بيت جديد: " .. child.Name)
+            task.wait(0.3)
+            updateESP()
+        end
+    end)
+end
+
+-- إذا كان المجلد موجود من البداية، نراقبه
+if housingFolder then
+    watchHousingFolder()
+end
+
+-- مراقبة إذا تغير اسم أي قطعة في المجلد
+game:GetService("RunService").Heartbeat:Connect(function()
+    -- نحدث كل 3 ثواني فقط
+    if espEnabled and tick() % 3 < 0.1 then
+        -- نتحقق إذا تغير اسم أي بيت في المجلد
+        if housingFolder and housingFolder.Parent then
+            for _, house in pairs(housingFolder:GetChildren()) do
+                if house:IsA("BasePart") and house.Name == username then
+                    -- إذا لقينا بيت باسمنا وليس عليه ESP، نحدث
+                    local hasESP = false
+                    for _, obj in pairs(espObjects) do
+                        if obj:IsA("BoxHandleAdornment") and obj.Adornee == house then
+                            hasESP = true
+                            break
+                        end
+                    end
+                    if not hasESP then
+                        updateESP()
+                    end
+                    break
+                end
+            end
+        end
+    end
 end)
+
+print("=========================================")
+print("✅ السكربت جاهز! ينتظر ظهور البيت الخاص بك")
+print("👤 إسمك: " .. username)
+print("📁 المجلد المستهدف: HousingTile")
+print("=========================================")

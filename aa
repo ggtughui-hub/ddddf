@@ -1683,7 +1683,7 @@ func['StartFarmJob'] = function()
 			else
 				local handMoney = Sf:GetMoney()
 				if Config.AutoDepositJob and handMoney >= Config.DepositThreshold then
-					-- ✅ إيداع بدون إيقاف الفارم
+					-- ✅ إيداع مع إعادة التشغيل التلقائي
 					local wasRunning = Config.StartFarmJob
 					Sf:ForceStop()
 					task.wait(0.3)
@@ -1724,7 +1724,7 @@ func['StartFarmJob'] = function()
 			end
 			
 		-- ============================================
-		-- QUICK-11 (نفس نظام الإيداع حق Janitor)
+		-- QUICK-11 (نظام الإيداع المعدل - يوقف الحركة فقط)
 		-- ============================================
 		elseif Jobs == "Quick-11" then
 			if JobNow() ~= "shelf_stocker" then
@@ -1737,19 +1737,41 @@ func['StartFarmJob'] = function()
 			else
 				local handMoney = Sf:GetMoney()
 				
-				-- ✅ نفس نظام الإيداع حق Janitor
+				-- ✅ نظام الإيداع (يوقف الحركة فقط، والفارم يشتغل تلقائياً)
 				if Config.AutoDepositJob and handMoney >= Config.DepositThreshold then
+					-- حفظ حالة الفارم
 					local wasRunning = Config.StartFarmJob
+					
+					-- إيقاف الحركة فقط
 					Sf:ForceStop()
 					task.wait(0.3)
-					CheckAndDeposit()
-					task.wait(0.5)
+					
+					-- تنفيذ الإيداع
+					local atmPos = GetDepositATMPos()
+					if atmPos then
+						local timeout = tick() + 15
+						while distTo(atmPos) > 8 and tick() < timeout do
+							Sf:Teleport(atmPos, true)
+							task.wait(0.5)
+						end
+						
+						local amt = Sf:GetMoney()
+						if amt > 0 then
+							print("[Deposit] Transferring $" .. amt)
+							Net.get("transfer_funds", "hand", "bank", amt)
+							task.wait(0.5)
+							StateController.LastDepositTime = tick()
+						end
+					end
+					
+					-- ✅ إعادة تشغيل الفارم تلقائياً
 					if wasRunning then
 						Config.StartFarmJob = true
 						StateController.JobSystemActive = true
 					end
 					task.wait(0.5)
 				else
+					-- شغل الفارم العادي
 					local boxJob = workspace.Map.Tiles.GasStationTile.Quick11.Interior.ShelfStockingJob
 					local boxTool = Backpack:FindFirstChild("BoxTool") or Character:FindFirstChild("BoxTool")
 					
@@ -1981,7 +2003,8 @@ func['AutoFarmFishing'] = function()
                 if ATMFolder then
                     for _, atm in ipairs(ATMFolder:GetChildren()) do
                         if atm.Name == "ATM" and GetAtmIsNotHackedJob(atm) then
-                            local pos = atm.PrimaryPart and atm.PrimaryPart.Position                            if not pos then
+                            local pos = atm.PrimaryPart and atm.PrimaryPart.Position
+                            if not pos then
                                 for _, part in ipairs(atm:GetDescendants()) do
                                     if part:IsA("BasePart") then pos = part.Position break end
                                 end
@@ -2566,7 +2589,7 @@ function UpdateFarmUI(mode)
         table.insert(DynamicElements, slider)
     
     -- ============================
-    -- FISHING (مع Auto Equip المعدل)
+    -- FISHING
     -- ============================
     elseif mode == "Fishing" then
         local toggle = AllFarmTab:Toggle({
@@ -2617,7 +2640,7 @@ function UpdateFarmUI(mode)
         })
         table.insert(DynamicElements, slider)
         
-        -- ✅ Auto Equip FishingRod (يعمل بشكل صحيح)
+        -- Auto Equip FishingRod
         local autoEquipActive = false 
         local fakeTools = {}
 
@@ -2628,7 +2651,6 @@ function UpdateFarmUI(mode)
             fakeTools = {}
         end
 
-        -- دالة لتجهيز العصا تلقائياً
         local function startAutoEquip()
             task.spawn(function()
                 while autoEquipActive do
@@ -2647,25 +2669,21 @@ function UpdateFarmUI(mode)
                         }
                         
                         if backpack and humanoid and rArm then
-                            -- البحث عن أفضل عصا
                             local mainTool = nil
                             for _, name in ipairs(toolNames) do
                                 mainTool = character:FindFirstChild(name) or backpack:FindFirstChild(name)
                                 if mainTool then break end
                             end
                             
-                            -- تجهيز العصا الرئيسية
                             if mainTool and mainTool.Parent == backpack then
                                 humanoid:EquipTool(mainTool)
                             end
                             
-                            -- إزالة العصا المكررة القديمة
                             for _, name in ipairs(toolNames) do
                                 local fake = character:FindFirstChild(name .. "_Fake")
                                 if fake then fake:Destroy() end
                             end
                             
-                            -- إضافة العصا المكررة لليد
                             for _, name in ipairs(toolNames) do
                                 local tool = backpack:FindFirstChild(name)
                                 if tool and tool ~= mainTool and not character:FindFirstChild(name .. "_Fake") then

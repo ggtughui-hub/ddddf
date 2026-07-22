@@ -1,78 +1,32 @@
--- ESP Script مع زر تشغيل/إيقاف وزر X
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local Window = Fluent:CreateWindow({
+    Title = "قائمة Fluent",
+    SubTitle = "بواسطتك",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(580, 460),
+    Acrylic = true,
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.LeftControl
+})
+
+-- إنشاء تبويب
+local Tab = Window:AddTab({ Title = "الرئيسية", Icon = "home" })
+
+-- متغيرات السكربت
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local playerName = player.Name
-
--- البحث عن مجلد HousingTile
 local housingFolder = workspace:FindFirstChild("HousingTile")
+local currentHighlight = nil
+local espEnabled = false
+
 if not housingFolder then
     warn("لم يتم العثور على مجلد HousingTile!")
-    return
 end
-
-print("تم تحميل السكربت - اسمك: " .. playerName)
-
--- إنشاء ScreenGui
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "HouseESP_Gui"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.Parent = player:WaitForChild("PlayerGui")
-
--- إنشاء Frame رئيسي
-local MainFrame = Instance.new("Frame")
-MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 160, 0, 60)
-MainFrame.Position = UDim2.new(0, 10, 0, 10)
-MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-MainFrame.BorderSizePixel = 0
-MainFrame.Parent = ScreenGui
-
--- زوايا مستديرة
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 8)
-corner.Parent = MainFrame
-
--- زر X للإغلاق
-local CloseButton = Instance.new("TextButton")
-CloseButton.Name = "CloseButton"
-CloseButton.Size = UDim2.new(0, 25, 0, 25)
-CloseButton.Position = UDim2.new(1, -30, 0, 5)
-CloseButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-CloseButton.Text = "X"
-CloseButton.TextSize = 16
-CloseButton.Font = Enum.Font.GothamBold
-CloseButton.BorderSizePixel = 0
-CloseButton.Parent = MainFrame
-
-local closeCorner = Instance.new("UICorner")
-closeCorner.CornerRadius = UDim.new(0, 4)
-closeCorner.Parent = CloseButton
-
--- زر ESP
-local ESPButton = Instance.new("TextButton")
-ESPButton.Name = "ESPButton"
-ESPButton.Size = UDim2.new(0, 140, 0, 40)
-ESPButton.Position = UDim2.new(0, 10, 0, 15)
-ESPButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-ESPButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ESPButton.TextSize = 16
-ESPButton.Font = Enum.Font.GothamBold
-ESPButton.Text = "ESP: OFF"
-ESPButton.BorderSizePixel = 0
-ESPButton.Parent = MainFrame
-
-local espCorner = Instance.new("UICorner")
-espCorner.CornerRadius = UDim.new(0, 6)
-espCorner.Parent = ESPButton
-
--- متغيرات
-local espEnabled = false
-local currentHighlight = nil
 
 -- دالة البحث عن البيت
 local function findMyHouse()
+    if not housingFolder then return nil end
     for _, house in pairs(housingFolder:GetChildren()) do
         local ownerDisplay = house:FindFirstChild("OwnerDisplay")
         if ownerDisplay then
@@ -89,13 +43,10 @@ local function findMyHouse()
 end
 
 -- دالة تشغيل/إيقاف ESP
-local function toggleESP()
-    espEnabled = not espEnabled
+local function toggleESP(state)
+    espEnabled = state
     
     if espEnabled then
-        ESPButton.Text = "ESP: ON"
-        ESPButton.BackgroundColor3 = Color3.fromRGB(0, 180, 0)
-        
         local myHouse = findMyHouse()
         if myHouse then
             -- إزالة Highlight قديم
@@ -117,15 +68,9 @@ local function toggleESP()
             
             print("✅ تم تفعيل ESP على بيتك!")
         else
-            warn(" لم يتم العثور على بيتك!")
-            ESPButton.Text = "ESP: OFF"
-            ESPButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-            espEnabled = false
+            warn("❌ لم يتم العثور على بيتك!")
         end
     else
-        ESPButton.Text = "ESP: OFF"
-        ESPButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-        
         if currentHighlight then
             currentHighlight:Destroy()
             currentHighlight = nil
@@ -134,20 +79,32 @@ local function toggleESP()
     end
 end
 
--- زر ESP
-ESPButton.MouseButton1Click:Connect(toggleESP)
+-- إضافة زر ESP (Toggle)
+local Toggle = Tab:AddToggle("HouseESP_Toggle", {
+    Title = "تفعيل ESP للبيت",
+    Description = "يظهر لون أخضر واضح حول بيتك",
+    Default = false
+})
 
--- زر X للإغلاق النهائي
-CloseButton.MouseButton1Click:Connect(function()
-    -- إزالة الـ Highlight إذا كان موجود
-    if currentHighlight then
-        currentHighlight:Destroy()
-    end
-    
-    -- إزالة الـ GUI كامل
-    ScreenGui:Destroy()
-    
-    print("🗑️ تم إغلاق السكربت نهائياً")
+Toggle:OnChanged(function(Value)
+    toggleESP(Value)
 end)
 
-print("🎮 السكربت جاهز! استخدم الزر في أعلى الشاشة")
+-- إضافة زر إغلاق نهائي للسكربت
+Tab:AddButton({
+    Title = "إغلاق السكربت نهائياً",
+    Description = "يزيل الـ ESP ويخفي القائمة",
+    Callback = function()
+        -- إزالة الـ Highlight
+        if currentHighlight then
+            currentHighlight:Destroy()
+        end
+        
+        -- إخفاء وإزالة النافذة
+        Window:Destroy()
+        
+        print("🗑️ تم إغلاق السكربت نهائياً")
+    end
+})
+
+print("🎮 تم تحميل السكربت - اسمك: " .. playerName)

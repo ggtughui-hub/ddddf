@@ -1,3 +1,7 @@
+-- سكربت ESP المخصص - مع زر تحكم (Delta Compatible)
+-- تم التعديل بناءً على هيكلية image_0.png للتعرف على البيت
+-- وتم تحديد الفارم بوت لتكون تابعة للبيت فقط
+
 if game.CoreGui:FindFirstChild("MyESP_GUI") then
     game.CoreGui.MyESP_GUI:Destroy()
 end
@@ -7,15 +11,99 @@ local Workspace = game:GetService("Workspace")
 local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 local myUsername = LocalPlayer.Name
-local myUserId = tostring(LocalPlayer.UserId)
 
 local espEnabled = false
-local highlights = {}
+local activeHighlights = {} -- لتخزين الهايلايتس النشطة
 
-print("--- سكربت ESP يعمل ---")
-print("اسمك: " + myUsername)
+-- إعدادات الألوان
+local COLOR_MY_HOUSE = Color3.fromRGB(0, 255, 0)   -- أخضر
+local COLOR_FARM_POT = Color3.fromRGB(255, 165, 0)  -- برتقالي
+local COLOR_OUTLINE = Color3.fromRGB(255, 255, 255) -- أبيض
 
--- إنشاء واجهة المستخدم (GUI)
+-- دالة لإنشاء الـ Highlight
+local function createHighlight(parent, fillColor)
+    if parent and not parent:FindFirstChild("OwnerHighlight") then
+        local hl = Instance.new("Highlight")
+        hl.Name = "OwnerHighlight"
+        hl.Adornee = parent
+        hl.FillColor = fillColor
+        hl.OutlineColor = COLOR_OUTLINE
+        hl.FillTransparency = 0.5
+        hl.OutlineTransparency = 0
+        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        hl.Parent = parent
+        table.insert(activeHighlights, hl)
+    end
+end
+
+-- دالة مسح الـ ESP
+local function clearESP()
+    for _, hl in ipairs(activeHighlights) do
+        if hl and hl.Parent then
+            hl:Destroy()
+        end
+    end
+    activeHighlights = {}
+    
+    -- تنظيف احتياطي
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj.Name == "OwnerHighlight" then
+            obj:Destroy()
+        end
+    end
+end
+
+-- دالة البحث الرئيسية
+local function scanAndApplyESP()
+    if not espEnabled then return end
+    
+    -- أولاً: البحث عن البيت بناءً على الهيكلية في image_0.png
+    local myExteriorFolder = nil
+    
+    -- نفترض أن مجلد "Exterior" هو Descendant لـ Workspace
+    for _, ext in ipairs(Workspace:GetDescendants()) do
+        if ext.Name == "Exterior" and ext:IsA("Folder") then
+            -- التحقق من المالك داخل هذا المجلد
+            local ownerDisplay = ext:FindFirstChild("OwnerDisplay")
+            local billboardGui = ownerDisplay and ownerDisplay:FindFirstChild("BillboardGui")
+            local ownerLabel = billboardGui and billboardGui:FindFirstChild("OwnerLabel")
+            
+            if ownerLabel and ownerLabel:IsA("TextLabel") and (ownerLabel.Text == myUsername or string.find(ownerLabel.Text, myUsername)) then
+                myExteriorFolder = ext
+                break -- وجدنا بيت اللاعب
+            end
+        end
+    end
+
+    -- إذا وجدنا البيت، نطبق عليه وعلى الفارم بوت الخاصة به الـ ESP
+    if myExteriorFolder then
+        -- 1. عمل ESP للبيت نفسه (مجلد Exterior أو الـ Model الأساسي للبيت)
+        local houseModel = myExteriorFolder.Parent -- نفترض أن Exterior داخل مجلد البيت الرئيسي
+        if houseModel then
+            createHighlight(houseModel, COLOR_MY_HOUSE)
+        else
+            createHighlight(myExteriorFolder, COLOR_MY_HOUSE) -- احتياطي إذا كان Exterior هو الأب
+        end
+
+        -- 2. البحث عن FarmingPots التابعة لهذا البيت فقط
+        -- نفترض أن الفارم بوت موجودة في مجلد يسمى "Farming" أو "Items" داخل البيت
+        -- سنبحث عن جميع الفارم بوت في الورك سبيس ونتحقق من الأب الخاص بها
+        for _, pot in ipairs(Workspace:GetDescendants()) do
+            if pot.Name == "FarmingPot" and pot:IsA("Model") then
+                -- التحقق الذكي: هل هذا الحوض يقع داخل نموذج البيت؟
+                if pot:IsDescendantOf(houseModel) or pot:IsDescendantOf(myExteriorFolder.Parent) then
+                    createHighlight(pot, COLOR_FARM_POT)
+                end
+            end
+        end
+        
+        print("تم العثور على البيت وتفعيل ESP عليه وعلى FarmingPots الخاصة به.")
+    else
+        print("لم يتم العثور على بيت يطابق اسمك في الهيكلية المحددة.")
+    end
+end
+
+-- إنشاء واجهة المستخدم
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "MyESP_GUI"
 ScreenGui.Parent = CoreGui
@@ -23,110 +111,39 @@ ScreenGui.Parent = CoreGui
 local ToggleButton = Instance.new("TextButton")
 ToggleButton.Name = "ToggleButton"
 ToggleButton.Parent = ScreenGui
-ToggleButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-ToggleButton.Position = UDim2.new(0.05, 0, 0.1, 0)
-ToggleButton.Size = UDim2.new(0, 160, 0, 50)
-ToggleButton.Font = Enum.Font.SourceSansBold
-ToggleButton.Text = "ESP: OFF"
-ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleButton.TextSize = 20
+ToggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+ToggleButton.Position = UDim2.new(0.1, 0, 0.1, 0) -- تغيير المكان قليلاً
+ToggleButton.Size = UDim2.new(0, 180, 0, 60)
+ToggleButton.Font = Enum.Font.GothamBold
+ToggleButton.Text = "تفعيل ESP البيت"
+ToggleButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+ToggleButton.TextSize = 18
+ToggleButton.AutoButtonColor = true
 
 local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.CornerRadius = UDim.new(0, 12)
 UICorner.Parent = ToggleButton
 
-local function createESP(object, fillColor, outlineColor)
-    if not object:FindFirstChild("CustomESP_Highlight") then
-        local highlight = Instance.new("Highlight")
-        highlight.Name = "CustomESP_Highlight"
-        highlight.Adornee = object
-        highlight.FillColor = fillColor
-        highlight.OutlineColor = outlineColor
-        highlight.FillTransparency = 0.5
-        highlight.OutlineTransparency = 0
-        highlight.Parent = object
-        table.insert(highlights, highlight)
-    end
-end
-
-local function clearESP()
-    for _, highlight in ipairs(highlights) do
-        if highlight and highlight.Parent then
-            highlight:Destroy()
-        end
-    end
-    highlights = {}
-    
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        local h = obj:FindFirstChild("CustomESP_Highlight")
-        if h then
-            h:Destroy()
-        end
-    end
-end
-
-local function scanAndApplyESP()
-    if not espEnabled then return end
-    
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if not espEnabled then break end
-        
-        -- فحص البيوت (HousingTile) بدقة أكبر
-        if obj.Name == "HousingTile" or string.find(obj.Name:lower(), "house") or string.find(obj.Name:lower(), "plot") then
-            local isMyHouse = false
-            
-            pcall(function()
-                -- التحقق من الـ Attributes
-                for _, attr in pairs({obj:GetAttributes()}) do
-                    -- إذا وجدنا اسمنا أو الـ ID مخزن كـ Attribute
-                    for _, v in pairs(attr) do
-                        if tostring(v) == myUsername or tostring(v) == myUserId then
-                            isMyHouse = true
-                        end
-                    end
-                end
-                
-                -- التحقق من الخصائص المباشرة أو القيم الداخلية
-                if obj.Name == myUsername or obj.Name == myUserId then
-                    isMyHouse = true
-                end
-            end)
-            
-            -- فحص الأبناء والـ Values للبحث عن اسمك أو رقمك
-            if not isMyHouse then
-                for _, descendant in ipairs(obj:GetDescendants()) do
-                    if descendant:IsA("StringValue") or descendant:IsA("IntValue") or descendant:IsA("NumberValue") then
-                        if tostring(descendant.Value) == myUsername or tostring(descendant.Value) == myUserId then
-                            isMyHouse = true
-                            break
-                        end
-                    end
-                end
-            end
-
-            if isMyHouse then
-                createESP(obj, Color3.fromRGB(0, 255, 0), Color3.fromRGB(255, 255, 255)) -- أخضر لبيتك
-            end
-        end
-
-        -- فحص أحواض الزراعة (تأكدنا من فلترتها لتكون دقيقة)
-        if obj.Name == "FarmingPot" or obj.Name == "FarmingPots" or string.find(obj.Name:lower(), "farmingpot") then
-            -- نتحقق إذا كان الحوض يخصك أو يقع ضمن بيتك (اختياري، حالياً يحدد أحواض الزراعة بشكل عام أو يمكن تخصيصها)
-            createESP(obj, Color3.fromRGB(255, 165, 0), Color3.fromRGB(255, 255, 255)) -- برتقالي للزرع
-        end
-    end
-end
-
+-- زر التفعيل
 ToggleButton.MouseButton1Click:Connect(function()
     espEnabled = not espEnabled
     
     if espEnabled then
-        ToggleButton.Text = "ESP: ON"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-        scanAndApplyESP()
+        ToggleButton.Text = "جاري المسح..."
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 100, 0) -- أخضر داكن
+        ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        clearESP() -- مسح القديم
+        scanAndApplyESP() -- البحث من جديد
+        ToggleButton.Text = "إيقاف ESP"
     else
-        ToggleButton.Text = "ESP: OFF"
-        ToggleButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+        ToggleButton.Text = "تفعيل ESP البيت"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+        ToggleButton.TextColor3 = Color3.fromRGB(200, 200, 200)
         clearESP()
     end
 end)
+
+-- رسالة ترحيبية في الكونسول
+print("--- سكربت Housing ESP جاهز ---")
+print("اسم المستخدم الخاص بك هو: " .. myUsername)
+print("اضغط F9 لفتح الكونسول في حال وجود أخطاء.")

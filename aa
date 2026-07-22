@@ -1654,7 +1654,7 @@ task.spawn(function()
 end)
 
 -- ============================================
--- START FARM JOB (المعدل النهائي - Quick-11 يروح للصراف مباشرة)
+-- START FARM JOB (المعدل النهائي - يروح لأقرب صراف)
 -- ============================================
 func['StartFarmJob'] = function()
 	while task.wait(0.2) do
@@ -1723,7 +1723,7 @@ func['StartFarmJob'] = function()
 			end
 			
 		-- ============================================
-		-- QUICK-11 (يروح للصراف مباشرة - ما يوقف شي)
+		-- QUICK-11 (يروح لأقرب صراف)
 		-- ============================================
 		elseif Jobs == "Quick-11" then
 			if JobNow() ~= "shelf_stocker" then
@@ -1736,30 +1736,53 @@ func['StartFarmJob'] = function()
 			else
 				local handMoney = Sf:GetMoney()
 				
-				-- ✅ نظام الإيداع المباشر (بدون إيقاف أي شي)
+				-- ✅ نظام الإيداع المباشر (يروح لأقرب صراف)
 				if Config.AutoDepositJob and handMoney >= Config.DepositThreshold then
 					print("[Deposit] Threshold reached: $" .. handMoney)
 					
-					-- ✅ البحث عن أقرب ATM
+					-- ✅ البحث عن أقرب ATM (بدقة)
 					local atmPos = nil
 					local shortestDist = math.huge
 					
-					for _, atm in pairs(workspace.Map.Props.ATMs:GetChildren()) do
-						if atm.Name == "ATM" then
-							local pos = atm.PrimaryPart and atm.PrimaryPart.Position
-							if not pos then
-								for _, part in ipairs(atm:GetDescendants()) do
-									if part:IsA("BasePart") then
-										pos = part.Position
-										break
+					local ATMFolder = workspace:FindFirstChild("Map")
+					if ATMFolder then
+						ATMFolder = ATMFolder:FindFirstChild("Props")
+						if ATMFolder then
+							ATMFolder = ATMFolder:FindFirstChild("ATMs")
+							if ATMFolder then
+								for _, atm in pairs(ATMFolder:GetChildren()) do
+									if atm.Name == "ATM" and atm:IsA("Model") then
+										local pos = nil
+										
+										if atm.PrimaryPart then
+											pos = atm.PrimaryPart.Position
+										end
+										
+										if not pos then
+											for _, part in ipairs(atm:GetDescendants()) do
+												if part:IsA("BasePart") then
+													pos = part.Position
+													break
+												end
+											end
+										end
+										
+										if not pos and atm:FindFirstChild("Area") then
+											local area = atm:FindFirstChild("Area")
+											if area:IsA("BasePart") then
+												pos = area.Position
+											end
+										end
+										
+										if pos then
+											local d = distTo(pos)
+											if d < shortestDist then
+												shortestDist = d
+												atmPos = pos
+												print("[Deposit] Found ATM at distance: " .. d)
+											end
+										end
 									end
-								end
-							end
-							if pos then
-								local d = distTo(pos)
-								if d < shortestDist then
-									shortestDist = d
-									atmPos = pos
 								end
 							end
 						end
@@ -1768,11 +1791,11 @@ func['StartFarmJob'] = function()
 					if not atmPos then
 						atmPos = Vector3.new(179.200882, 255.290543, -236.355896)
 						print("[Deposit] No ATM found, using default position")
+					else
+						print("[Deposit] Closest ATM at distance: " .. shortestDist)
 					end
 					
-					print("[Deposit] Going to ATM at distance: " .. distTo(atmPos))
-					
-					-- ✅ التليفورت للصراف
+					-- ✅ التليفورت لأقرب صراف
 					local timeout = tick() + 20
 					while distTo(atmPos) > 6 and tick() < timeout do
 						Sf:Teleport(atmPos, Config.StartFarmJob)
@@ -1789,7 +1812,6 @@ func['StartFarmJob'] = function()
 						print("[Deposit] Done! $" .. amt .. " deposited")
 					end
 					
-					-- ✅ بعد الإيداع يكمل الفارم طبيعي (ما يحتاج إعادة تشغيل)
 				else
 					-- شغل الفارم العادي
 					local boxJob = workspace.Map.Tiles.GasStationTile.Quick11.Interior.ShelfStockingJob
@@ -1973,8 +1995,7 @@ func['AutoFarmFishing'] = function()
         else
             local fishesToSell = {}
             local currentItems = PlayerGui:FindFirstChild("Items")
-            if currentItems then
-                local holding = currentItems:FindFirstChild("ItemsHolder") and currentItems.ItemsHolder:FindFirstChild("ItemsScrollingFrame")
+            if currentItems then                local holding = currentItems:FindFirstChild("ItemsHolder") and currentItems.ItemsHolder:FindFirstChild("ItemsScrollingFrame")
                 if holding then
                     for _, v in pairs(holding:GetChildren()) do
                         if v.Name ~= 'Folder' and v.Name ~= 'UIGridLayout' and v.Name ~= "ItemTemplate" then

@@ -15,9 +15,9 @@ print("==============================")
 local espEnabled = false
 local activeHighlights = {}
 
--- الألوان الواضحة
+-- الألوان
 local COLOR_HOUSE = Color3.fromRGB(0, 255, 0)     -- أخضر للبيت
-local COLOR_FARM = Color3.fromRGB(255, 140, 0)     -- برتقالي للـ FarmingPot
+local COLOR_FARM = Color3.fromRGB(255, 140, 0)     -- برتقالي للأحواض
 local COLOR_OUTLINE = Color3.fromRGB(255, 255, 255) -- أبيض للأطراف
 
 local function createHighlight(target, fillColor)
@@ -56,21 +56,32 @@ local function scanAndApplyESP()
     
     local myTargetHouse = nil
     
-    -- 1. البحث حصرياً داخل كل HousingTile في الخريطة
+    -- البحث داخل كل HousingTile في العالم
     for _, tile in ipairs(Workspace:GetDescendants()) do
         if tile.Name == "HousingTile" then
-            -- 2. البحث عن House بداخله
-            local houseModel = tile:FindFirstChild("House")
-            if houseModel then
-                -- 3. اتباع المسار الدقيق الموضح في الصورة للوصول إلى OwnerLabel
-                for _, descendant in ipairs(houseModel:GetDescendants()) do
-                    if descendant.Name == "OwnerLabel" and descendant:IsA("TextLabel") then
-                        -- التحقق من مطابقة اسمك مع النص داخل الـ OwnerLabel
-                        if descendant.Text == myUsername or string.find(descendant.Text, myUsername) then
-                            myTargetHouse = houseModel -- تحديد نموذج الـ House الخاص بك بالكامل
-                            print("تم العثور على بيتك بنجاح داخل الـ HousingTile!")
-                            break
+            -- البحث عن OwnerLabel داخل BillboardGui الخاص بهذا الـ Tile
+            for _, desc in ipairs(tile:GetDescendants()) do
+                if desc.Name == "OwnerLabel" and desc:IsA("TextLabel") then
+                    -- التحقق من مطابقة اسمك تماماً أو احتوائه على اسمك
+                    if desc.Text == myUsername or string.find(desc.Text, myUsername) then
+                        -- الصعود من الـ OwnerLabel للوصول إلى مجلد House أو Exterior الرئيسي للبيت
+                        -- المسار: OwnerLabel -> BillboardGui -> OwnerDisplay -> Exterior -> TrapHouse2 -> House
+                        local current = desc.Parent
+                        while current and current ~= tile do
+                            if current.Name == "House" then
+                                myTargetHouse = current
+                                break
+                            end
+                            current = current.Parent
                         end
+                        
+                        -- إن لم يجد مجلد House، نأخذ الأب المباشر للـ Exterior أو الـ Tile نفسه
+                        if not myTargetHouse then
+                            myTargetHouse = tile:FindFirstChild("House") or tile
+                        end
+                        
+                        print("تم العثور على بيتك بنجاح عبر BillboardGui الخاص بك!")
+                        break
                     end
                 end
             end
@@ -79,17 +90,17 @@ local function scanAndApplyESP()
     end
     
     if myTargetHouse then
-        -- عمل ESP للبيت الخاص بك فقط (مجلد House)
+        -- تطبيق ESP على البيت
         createHighlight(myTargetHouse, COLOR_HOUSE)
         
-        -- البحث عن أحواض الزراعة التابعة لبيتك فقط وتلوينها بالبرتقالي
+        -- تطبيق ESP على أحواض الزراعة التابعة له
         for _, obj in ipairs(myTargetHouse:GetDescendants()) do
             if obj.Name == "FarmingPot" or string.find(obj.Name:lower(), "farmingpot") then
                 createHighlight(obj, COLOR_FARM)
             end
         end
     else
-        print("لم يتم العثور على بيت يطابق اسمك (" .. myUsername .. ") داخل أي HousingTile.")
+        print("لم يتم العثور على BillboardGui يطابق اسمك (" .. myUsername .. ") داخل أي HousingTile.")
     end
 end
 
@@ -146,7 +157,7 @@ ToggleButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- حدث زر الإغلاق (حذف الـ ESP والواجهة نهائياً)
+-- حدث زر الإغلاق (حذف الواجهة والـ ESP نهائياً)
 CloseButton.MouseButton1Click:Connect(function()
     clearESP()
     ScreenGui:Destroy()

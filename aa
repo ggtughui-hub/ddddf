@@ -9,10 +9,8 @@ local Window = Fluent:CreateWindow({
     MinimizeKey = Enum.KeyCode.LeftControl
 })
 
--- إنشاء تبويب
 local Tab = Window:AddTab({ Title = "الرئيسية", Icon = "home" })
 
--- متغيرات السكربت
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local playerName = player.Name
@@ -21,20 +19,65 @@ local currentHighlight = nil
 local espEnabled = false
 
 if not housingFolder then
-    warn("لم يتم العثور على مجلد HousingTile!")
+    warn("❌ لم يتم العثور على مجلد HousingTile!")
+else
+    print("✅ تم العثور على HousingTile")
+    print("📁 عدد البيوت الموجودة: " .. #housingFolder:GetChildren())
+    
+    -- طباعة معلومات عن كل بيت
+    for i, house in pairs(housingFolder:GetChildren()) do
+        print("\n🏠 بيت رقم " .. i .. ": " .. house.Name)
+        local ownerDisplay = house:FindFirstChild("OwnerDisplay")
+        if ownerDisplay then
+            print("   ✅ وجد OwnerDisplay")
+            local billboardGui = ownerDisplay:FindFirstChild("BillboardGui")
+            if billboardGui then
+                print("   ✅ وجد BillboardGui")
+                local ownerLabel = billboardGui:FindFirstChild("OwnerLabel")
+                if ownerLabel then
+                    print("   ✅ وجد OwnerLabel")
+                    print("    النص في OwnerLabel: '" .. ownerLabel.Text .. "'")
+                    print("   🔍 اسمك: '" .. playerName .. "'")
+                    if ownerLabel.Text == playerName then
+                        print("   🎯 تطابق! هذا بيتك!")
+                    end
+                else
+                    print("    لم يجد OwnerLabel")
+                    -- طباعة جميع الأجزاء داخل BillboardGui
+                    print("   📋 محتويات BillboardGui:")
+                    for _, child in pairs(billboardGui:GetChildren()) do
+                        print("      - " .. child.Name .. " (" .. child.ClassName .. ")")
+                        if child:IsA("TextLabel") then
+                            print("        النص: '" .. child.Text .. "'")
+                        end
+                    end
+                end
+            else
+                print("   ❌ لم يجد BillboardGui")
+            end
+        else
+            print("   ❌ لم يجد OwnerDisplay")
+        end
+    end
 end
 
--- دالة البحث عن البيت
+-- دالة البحث عن البيت - نسخة محسّنة
 local function findMyHouse()
     if not housingFolder then return nil end
+    
     for _, house in pairs(housingFolder:GetChildren()) do
         local ownerDisplay = house:FindFirstChild("OwnerDisplay")
         if ownerDisplay then
             local billboardGui = ownerDisplay:FindFirstChild("BillboardGui")
             if billboardGui then
                 local ownerLabel = billboardGui:FindFirstChild("OwnerLabel")
-                if ownerLabel and ownerLabel.Text == playerName then
-                    return house
+                if ownerLabel then
+                    -- محاولة مطابقة بعدة طرق
+                    if ownerLabel.Text == playerName or 
+                       ownerLabel.Text:find(playerName) or
+                       tostring(ownerLabel.Text):lower() == playerName:lower() then
+                        return house
+                    end
                 end
             end
         end
@@ -42,19 +85,16 @@ local function findMyHouse()
     return nil
 end
 
--- دالة تشغيل/إيقاف ESP
 local function toggleESP(state)
     espEnabled = state
     
     if espEnabled then
         local myHouse = findMyHouse()
         if myHouse then
-            -- إزالة Highlight قديم
             if currentHighlight then
                 currentHighlight:Destroy()
             end
             
-            -- إنشاء Highlight جديد
             local highlight = Instance.new("Highlight")
             highlight.Name = "HouseESP"
             highlight.Adornee = myHouse
@@ -69,6 +109,7 @@ local function toggleESP(state)
             print("✅ تم تفعيل ESP على بيتك!")
         else
             warn("❌ لم يتم العثور على بيتك!")
+            warn("💡 راجع الـ Output لمعرفة التفاصيل")
         end
     else
         if currentHighlight then
@@ -79,7 +120,6 @@ local function toggleESP(state)
     end
 end
 
--- إضافة زر ESP (Toggle)
 local Toggle = Tab:AddToggle("HouseESP_Toggle", {
     Title = "تفعيل ESP للبيت",
     Description = "يظهر لون أخضر واضح حول بيتك",
@@ -90,21 +130,17 @@ Toggle:OnChanged(function(Value)
     toggleESP(Value)
 end)
 
--- إضافة زر إغلاق نهائي للسكربت
 Tab:AddButton({
     Title = "إغلاق السكربت نهائياً",
     Description = "يزيل الـ ESP ويخفي القائمة",
     Callback = function()
-        -- إزالة الـ Highlight
         if currentHighlight then
             currentHighlight:Destroy()
         end
-        
-        -- إخفاء وإزالة النافذة
         Window:Destroy()
-        
-        print("🗑️ تم إغلاق السكربت نهائياً")
+        print("🗑️ تم إغلاق السكربت")
     end
 })
 
-print("🎮 تم تحميل السكربت - اسمك: " .. playerName)
+print("\n🎮 تم تحميل السكربت - اسمك: " .. playerName)
+print("📋 راجع الـ Output (F9) لرؤية تفاصيل البيوت")

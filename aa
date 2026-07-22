@@ -1654,7 +1654,7 @@ task.spawn(function()
 end)
 
 -- ============================================
--- START FARM JOB (المعدل النهائي - Quick-11)
+-- START FARM JOB (المعدل النهائي - Quick-11 يروح مباشرة)
 -- ============================================
 func['StartFarmJob'] = function()
 	while task.wait(0.2) do
@@ -1723,7 +1723,7 @@ func['StartFarmJob'] = function()
 			end
 			
 		-- ============================================
-		-- QUICK-11 (يوقف الفارم، الحركة تستمر للإيداع)
+		-- QUICK-11 (ما يوقف شي، يروح مباشرة للصراف)
 		-- ============================================
 		elseif Jobs == "Quick-11" then
 			if JobNow() ~= "shelf_stocker" then
@@ -1736,20 +1736,12 @@ func['StartFarmJob'] = function()
 			else
 				local handMoney = Sf:GetMoney()
 				
-				-- ✅ نظام الإيداع (يوقف الفارم، لكن الحركة تستمر للإيداع)
+				-- ✅ نظام الإيداع المباشر (بدون إيقاف الفارم أو الحركة)
 				if Config.AutoDepositJob and handMoney >= Config.DepositThreshold then
-					-- حفظ حالة الفارم
-					local wasRunning = Config.StartFarmJob
-					
-					-- ⚠️ إيقاف الفارم مؤقتاً
-					StateController.JobSystemActive = false
-					Config.StartFarmJob = false
-					task.wait(0.3)
-					
-					-- ✅ تنفيذ الإيداع (الحركة مستمرة لأننا نستخدم Sf:Teleport مباشرة)
+					-- ✅ يروح مباشرة للصراف
 					local atmPos = GetDepositATMPos()
 					if atmPos then
-						print("[Deposit] Going to ATM...")
+						print("[Deposit] Going to ATM directly...")
 						local timeout = tick() + 15
 						while distTo(atmPos) > 8 and tick() < timeout do
 							Sf:Teleport(atmPos, true)
@@ -1764,14 +1756,7 @@ func['StartFarmJob'] = function()
 							StateController.LastDepositTime = tick()
 						end
 					end
-					
-					-- ✅ إعادة تشغيل الفارم تلقائياً
-					if wasRunning then
-						Config.StartFarmJob = true
-						StateController.JobSystemActive = true
-						print("[Deposit] Farm resumed")
-					end
-					task.wait(0.5)
+					-- ✅ بعد الإيداع يكمل الفارم طبيعي (ما يحتاج إعادة تشغيل)
 				else
 					-- شغل الفارم العادي
 					local boxJob = workspace.Map.Tiles.GasStationTile.Quick11.Interior.ShelfStockingJob

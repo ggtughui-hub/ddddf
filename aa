@@ -1723,7 +1723,7 @@ func['StartFarmJob'] = function()
 			end
 			
 		-- ============================================
-		-- QUICK-11 (يوقف الفارم موقتاً، الحركة تستمر)
+		-- QUICK-11 (يوقف الفارم، الحركة تستمر للإيداع)
 		-- ============================================
 		elseif Jobs == "Quick-11" then
 			if JobNow() ~= "shelf_stocker" then
@@ -1736,19 +1736,20 @@ func['StartFarmJob'] = function()
 			else
 				local handMoney = Sf:GetMoney()
 				
-				-- ✅ نظام الإيداع (يوقف الفارم موقتاً، الحركة تستمر)
+				-- ✅ نظام الإيداع (يوقف الفارم، لكن الحركة تستمر للإيداع)
 				if Config.AutoDepositJob and handMoney >= Config.DepositThreshold then
 					-- حفظ حالة الفارم
 					local wasRunning = Config.StartFarmJob
 					
-					-- ⚠️ إيقاف الفارم موقتاً (الحركة تستمر)
+					-- ⚠️ إيقاف الفارم مؤقتاً
 					StateController.JobSystemActive = false
 					Config.StartFarmJob = false
 					task.wait(0.3)
 					
-					-- ✅ تنفيذ الإيداع (الحركة مستمرة)
+					-- ✅ تنفيذ الإيداع (الحركة مستمرة لأننا نستخدم Sf:Teleport مباشرة)
 					local atmPos = GetDepositATMPos()
 					if atmPos then
+						print("[Deposit] Going to ATM...")
 						local timeout = tick() + 15
 						while distTo(atmPos) > 8 and tick() < timeout do
 							Sf:Teleport(atmPos, true)
@@ -1768,6 +1769,7 @@ func['StartFarmJob'] = function()
 					if wasRunning then
 						Config.StartFarmJob = true
 						StateController.JobSystemActive = true
+						print("[Deposit] Farm resumed")
 					end
 					task.wait(0.5)
 				else

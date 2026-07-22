@@ -1,1 +1,130 @@
+-- التأكد من عدم تكرار تشغيل الواجهة إذا تم تنفيذ السكربت مرتين
+if game.CoreGui:FindFirstChild("MyESP_GUI") then
+    game.CoreGui.MyESP_GUI:Destroy()
+end
 
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
+local LocalPlayer = Players.LocalPlayer
+local myUsername = LocalPlayer.Name
+
+local espEnabled = false
+local highlights = {}
+
+-- إنشاء واجهة المستخدم (GUI) والزر
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "MyESP_GUI"
+ScreenGui.Parent = CoreGui
+
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Name = "ToggleButton"
+ToggleButton.Parent = ScreenGui
+ToggleButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+ToggleButton.Position = UDim2.new(0.05, 0, 0.1, 0)
+ToggleButton.Size = UDim2.new(0, 160, 0, 50)
+ToggleButton.Font = Enum.Font.SourceSansBold
+ToggleButton.Text = "ESP: OFF"
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.TextSize = 20
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = ToggleButton
+
+-- دالة لإنشاء الـ ESP وتخزينه لحذفه لاحقاً
+local function createESP(object, fillColor, outlineColor)
+    if not object:FindFirstChild("CustomESP_Highlight") then
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "CustomESP_Highlight"
+        highlight.Adornee = object
+        highlight.FillColor = fillColor
+        highlight.OutlineColor = outlineColor
+        highlight.FillTransparency = 0.5
+        highlight.OutlineTransparency = 0
+        highlight.Parent = object
+        table.insert(highlights, highlight)
+    end
+end
+
+-- دالة مسح الـ ESP بالكامل عند الإطفاء
+local function clearESP()
+    for _, highlight in ipairs(highlights) do
+        if highlight and highlight.Parent then
+            highlight:Destroy()
+        end
+    end
+    highlights = {}
+    
+    -- تنظيف احتياطي لأي هايلايت قديم بقبي الأثر
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        local h = obj:FindFirstChild("CustomESP_Highlight")
+        if h then
+            h:Destroy()
+        end
+    end
+end
+
+-- دالة فحص وتطبيق الـ ESP
+local function scanAndApplyESP()
+    if not espEnabled then return end
+    
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if not espEnabled then break end
+        
+        if obj.Name == "HousingTile" then
+            local isMyHouse = false
+            pcall(function()
+                if obj:GetAttribute("Owner") == myUsername or obj.Name == myUsername or (obj:FindFirstChild("Owner") and obj.Owner.Value == myUsername) then
+                    isMyHouse = true
+                end
+            end)
+            
+            if not isMyHouse then
+                for _, descendant in ipairs(obj:GetDescendants()) do
+                    if descendant:IsA("StringValue") and descendant.Value == myUsername then
+                        isMyHouse = true
+                        break
+                    end
+                end
+            end
+
+            if isMyHouse then
+                createESP(obj, Color3.fromRGB(0, 255, 0), Color3.fromRGB(255, 255, 255))
+            end
+        end
+
+        if obj.Name == "FarmingPot" or obj.Name == "FarmingPresets" or obj.Name == "FarmingPots" or string.find(obj.Name:lower(), "farmingpot") then
+            createESP(obj, Color3.fromRGB(255, 165, 0), Color3.fromRGB(255, 255, 255))
+        end
+    end
+end
+
+-- حدث الضغط على الزر للتشغيل والإطفاء
+ToggleButton.MouseButton1Click:Connect(function()
+    espEnabled = not espEnabled
+    
+    if espEnabled then
+        ToggleButton.Text = "ESP: ON"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+        scanAndApplyESP()
+    else
+        ToggleButton.Text = "ESP: OFF"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+        clearESP()
+    end
+end)
+
+-- مراقبة العناصر الجديدة فقط في حال كان الـ ESP شغّالاً
+Workspace.DescendantAdded:Connect(function(obj)
+    if not espEnabled then return end
+    
+    if obj.Name == "HousingTile" or string.find(obj.Name:lower(), "farmingpot") then
+        task.spawn(function()
+            task.wait(0.5) -- انتظار حتى يتم تحميل محتويات العنصر بالكامل
+            if espEnabled then
+                scanAndApplyESP()
+            end
+        end)
+    end
+end)

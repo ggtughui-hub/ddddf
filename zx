@@ -1,9 +1,12 @@
--- قم بنسخ هذا الكود ولصقه مباشرة في محقن Delta داخل اللعبة
+-- قم بنسخ هذا الكود ولصقه في محقن Delta
 
 local player = game.Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- التأكد من عدم تكرار الواجهة إذا تم تشغيل السكربت أكثر من مرة
+-- [تعديل هنا]: حدد أقصى عمق ترغب في النزول إليه تحت الأرض
+local MaxDepth = 15 -- (كلما قل الرقم، كان النزول أقرب لسطح الأرض)
+
+-- التأكد من عدم تكرار الواجهة
 if playerGui:FindFirstChild("DeltaUndergroundGui") then
 	playerGui.DeltaUndergroundGui:Destroy()
 end
@@ -25,17 +28,15 @@ local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 10)
 corner.Parent = frame
 
--- النص التوضيحي داخل الشريط
 local label = Instance.new("TextLabel")
 label.Size = UDim2.new(1, 0, 1, 0)
 label.BackgroundTransparency = 1
-label.Text = "اسحب لليمين للنزول تحت الأرض"
+label.Text = "اسحب لليمين للنزول"
 label.TextColor3 = Color3.fromRGB(200, 200, 200)
 label.TextSize = 14
 label.Font = Enum.Font.SourceSansBold
 label.Parent = frame
 
--- زر السحب (Slider Button)
 local sliderButton = Instance.new("TextButton")
 sliderButton.Size = UDim2.new(0, 50, 1, 0)
 sliderButton.Position = UDim2.new(0, 0, 0, 0)
@@ -50,10 +51,9 @@ local btnCorner = Instance.new("UICorner")
 btnCorner.CornerRadius = UDim.new(0, 10)
 btnCorner.Parent = sliderButton
 
--- منطق السحب المتوافق مع الجوال (Touch & Mouse)
 local userInputService = game:GetService("UserInputService")
 local dragging = false
-local dragInput, mousePos, framePos
+local mousePos, framePos
 
 sliderButton.InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -81,10 +81,10 @@ userInputService.InputChanged:Connect(function(input)
 		
 		sliderButton.Position = UDim2.new(0, newX, 0, 0)
 		
-		-- حساب النسبة (من 0 إلى 1) وإنزال اللاعب تدريجياً تحت الأرض
+		-- حساب النسبة المئوية والنزول بناءً على العمق الذي اخترته
 		local percentage = newX / maxDistance
 		local currentPos = humanoidRootPart.Position
-		local targetY = - (percentage * 100) -- أقصى نزول 100 خطوة تحت الأرض
+		local targetY = - (percentage * MaxDepth)
 		
 		humanoidRootPart.CFrame = CFrame.new(currentPos.X, targetY, currentPos.Z)
 	end

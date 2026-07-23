@@ -2604,7 +2604,7 @@ FishingTab:Toggle({
                             if char then
                                 local rodTool = char:WaitForChild(actualRodName, 5)
                                 if rodTool then
-                                    Net.get("throw_rod", rodTool, Vector3.new(84.92, 249, 925.144))
+                                    Net.get("throw_rod", rodTool, Vector3.new(83.92, 249.807, 919.144))
                                     
                                     local timeout = tick() + 30
                                     local progressBarVisible = false
@@ -2735,7 +2735,7 @@ FishingTab:Toggle({
                             end
                         end
                         
-                        local shopPos = Vector3.new(-136.406662, 254.851074, 153.555588)
+                        local shopPos = Vector3.new(82.92, 249.807, 929.144)
                         Sf:Teleport(shopPos, Config.AutoFarmFishing)
                         task.wait(0.01)
                         

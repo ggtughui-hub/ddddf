@@ -424,10 +424,9 @@ end
 -- 🎣 نظام رصد الأسماك النادرة + إرسال Webhook
 -- ==========================================
 
--- ✅ القائمة المعدلة: فقط Marlin و Sailfish
 local RARE_FISH_LIST = {
     "Marlin",
-    "Sailfish"
+    "Sailfish",
 }
 
 local WEBHOOK_URL = "https://discordapp.com/api/webhooks/1529927605015412827/arArLpMCxMr-n0rOpCFwnI699GUYgXqATDzyKGLTSwbYV5scvO7d9HuCk-qnGtlDAKZ6"
@@ -1486,4 +1485,4 @@ end
 })
 print("✅ Script Loaded Successfully!")
 print("🛡️ Protection System Active - Will pause for 2 seconds if detected")
-print("🎣 Rare Fish Monitoring Active - Will send webhook for: Marlin, Sailfish")
+print("🎣 Rare Fish Monitoring Active - Will send webhook when rare fish caught!")

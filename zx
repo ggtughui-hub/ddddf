@@ -1,29 +1,41 @@
--- كود مشغل دلتا مع بروكسي
+-- كود مشغل دلتا مع بروكسي يعمل
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
--- 🔥 استخدم هذا الرابط بدل الرابط العادي
-local webhookURL = "https://discord.yeesen.dev/api/webhooks/1529927605015412827/arArLpMCxMr-n0rOpCFwnI699GUYgXqATDzyKGLTSwbYV5scvO7d9HuCk-qnGtlDAKZ6"
+-- 🔥 رابطك مع بروكسي (بديل يعمل)
+local webhookURL = "https://webhook.lewisakura.moe/api/webhooks/1529927605015412827/arArLpMCxMr-n0rOpCFwnI699GUYgXqATDzyKGLTSwbYV5scvO7d9HuCk-qnGtlDAKZ6"
 
--- دالة الإرسال
+-- دالة الإرسال مع تأكيد
 local function sendMessage(content)
     local data = { content = content }
     local jsonData = HttpService:JSONEncode(data)
-    local headers = { ["Content-Type"] = "application/json" }
-    
+    local headers = {
+        ["Content-Type"] = "application/json"
+    }
+
     local success, response = pcall(function()
         return HttpService:PostAsync(webhookURL, jsonData, Enum.HttpContentType.ApplicationJson, false, headers)
     end)
-    
+
     if success then
         print("✅ تم الإرسال بنجاح عبر البروكسي!")
     else
         warn("❌ فشل الإرسال: " .. tostring(response))
+        -- جرب البروكسي الثاني إذا فشل الأول
+        local backupURL = "https://discord.yeesen.dev/api/webhooks/1529927605015412827/arArLpMCxMr-n0rOpCFwnI699GUYgXqATDzyKGLTSwbYV5scvO7d9HuCk-qnGtlDAKZ6"
+        local retrySuccess, retryResponse = pcall(function()
+            return HttpService:PostAsync(backupURL, jsonData, Enum.HttpContentType.ApplicationJson, false, headers)
+        end)
+        if retrySuccess then
+            print("✅ تم الإرسال بنجاح عبر البروكسي الاحتياطي!")
+        else
+            warn("❌ فشل البروكسي الاحتياطي أيضاً: " .. tostring(retryResponse))
+        end
     end
 end
 
--- إنشاء الزر
+-- إنشاء الزر (نفس الكود السابق)
 local screenGui = Instance.new("ScreenGui")
 screenGui.Parent = game.CoreGui
 
@@ -37,7 +49,6 @@ button.Font = Enum.Font.GothamBold
 button.TextSize = 20
 button.Parent = screenGui
 
--- زر الإغلاق
 local closeButton = Instance.new("TextButton")
 closeButton.Size = UDim2.new(0, 30, 0, 30)
 closeButton.Position = UDim2.new(1, -35, 0, 5)
@@ -52,7 +63,6 @@ closeButton.MouseButton1Click:Connect(function()
     screenGui:Destroy()
 end)
 
--- عند الضغط على الزر
 button.MouseButton1Click:Connect(function()
     local msg = string.format(
         "🟢 **تم الضغط على الزر بواسطة:** %s\n🆔 **معرف اللاعب:** %s\n⏰ **الوقت:** %s",
@@ -60,11 +70,10 @@ button.MouseButton1Click:Connect(function()
         player.UserId,
         os.date("%Y-%m-%d %H:%M:%S")
     )
-    
     sendMessage(msg)
     button.Text = "✅ تم الإرسال!"
     wait(2)
     button.Text = "📨 أرسل للديسكورد"
 end)
 
-print("✅ السكربت جاهز مع البروكسي! اضغط على الزر.")
+print("✅ السكربت جاهز مع بروكسي احتياطي!")

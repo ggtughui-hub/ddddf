@@ -394,7 +394,7 @@ return 0
 end
 
 -- ==========================================
--- دوال نظام الإيداع
+-- دوال نظام الإيداع (المطورة)
 -- ==========================================
 local function GetAtmIsNotHackedJob(atm)
 if not atm then return false end
@@ -410,14 +410,11 @@ return false
 end
 
 local function CheckAndDeposit()
-    if not Config.AutoDepositJob then return false end
+    if not Config.AutoDepositJob then return end
     local handMoney = Sf:GetMoney()
-    if handMoney < Config.DepositThreshold then return false end
+    if handMoney < Config.DepositThreshold then return end
     
     print("💰 بدء عملية الإيداع... المبلغ: $" .. handMoney)
-    
-    -- ✅ إيقاف الفارم مؤقتاً
-    Config.Paused = true
     
     local shortestDist, atmPos = math.huge, nil
     local ATMFolder = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("Props") and workspace.Map.Props:FindFirstChild("ATMs")
@@ -444,7 +441,7 @@ local function CheckAndDeposit()
 
     if atmPos then
         local timeout = tick() + 15
-        while (atmPos - RootPart.Position).Magnitude > 8 and tick() < timeout and Config.AutoFarmFishing do
+        while (atmPos - RootPart.Position).Magnitude > 8 and tick() < timeout and Config.AutoFarmFishing and not Config.Paused do
             Sf:Teleport(atmPos, Config.AutoFarmFishing)
             task.wait(0.5)
         end
@@ -456,19 +453,15 @@ local function CheckAndDeposit()
             print("✅ تم إيداع $" .. amt)
         end
     end
-    
-    -- ✅ استئناف الفارم
-    Config.Paused = false
-    return true
 end
 
 -- ==========================================
--- دالة شراء المستلزمات
+-- دالة شراء المستلزمات (مع الإيداع أولاً)
 -- ==========================================
 local function BuySupplies(targetRod, targetBait, hasRod, hasBait)
     local baitAmt = Config.FishingBaitAmount or 1
     
-    -- حساب المبلغ المطلوب
+    -- ✅ حساب المبلغ المطلوب
     local moneyNeeded = 0
     if not hasRod then
         for _, rod in ipairs(FishingRods) do
@@ -487,18 +480,15 @@ local function BuySupplies(targetRod, targetBait, hasRod, hasBait)
         end
     end
     
-    print("💰 المبلغ المطلوب للشراء: $" .. moneyNeeded)
-    print("💰 المبلغ الموجود: $" .. Sf:GetMoney())
-    
-    -- الحالة 3: إذا كان معي فلوس حد اقصى ومامعي طعم → يودع أولاً
+    -- ✅ أولاً: إيداع الفلوس الزائدة (إذا كان معه أكثر من المطلوب + حد الإيداع)
     local currentMoney = Sf:GetMoney()
-    if (not hasRod or not hasBait) and currentMoney >= Config.DepositThreshold and Config.AutoDepositJob then
-        print("💰 مامعي طعم ومعي فلوس حد اقصى، يتم الإيداع أولاً...")
+    if currentMoney > moneyNeeded + Config.DepositThreshold then
+        print("💰 يوجد فلوس زائدة، يتم الإيداع أولاً...")
         CheckAndDeposit()
         task.wait(0.5)
     end
     
-    -- الحالة 4: إذا مامعي فلوس ولا طعم → يسحب من البنك
+    -- ✅ ثانياً: التأكد من وجود فلوس كافية للشراء
     while Sf:GetMoney() < moneyNeeded and Config.AutoFarmFishing do
         if Config.Paused then 
             task.wait(1) 
@@ -568,26 +558,24 @@ local function BuySupplies(targetRod, targetBait, hasRod, hasBait)
         end
     end
     
-    -- الذهاب للمتجر والشراء
-    if not hasRod or not hasBait then
-        local shopPos = Vector3.new(-136.406662, 254.851074, 153.555588)
-        Sf:Teleport(shopPos, Config.AutoFarmFishing)
+    -- ✅ ثالثاً: الذهاب للمتجر والشراء
+    local shopPos = Vector3.new(-136.406662, 254.851074, 153.555588)
+    Sf:Teleport(shopPos, Config.AutoFarmFishing)
+    task.wait(0.01)
+    
+    if not hasRod then
+        Net.get("purchase_consumable", workspace:WaitForChild("ShopZone_Hardware"), targetRod)
         task.wait(0.01)
-        
-        if not hasRod then
-            Net.get("purchase_consumable", workspace:WaitForChild("ShopZone_Hardware"), targetRod)
-            task.wait(0.01)
-            print("🎣 تم شراء: " .. targetRod)
+        print("🎣 تم شراء: " .. targetRod)
+    end
+    
+    if not hasBait then
+        local baitAmt = Config.FishingBaitAmount or 1
+        for i = 1, baitAmt do
+            Net.get("purchase_consumable", workspace:WaitForChild("ShopZone_Hardware"), targetBait)
+            task.wait(0.05)
         end
-        
-        if not hasBait then
-            local baitAmt = Config.FishingBaitAmount or 1
-            for i = 1, baitAmt do
-                Net.get("purchase_consumable", workspace:WaitForChild("ShopZone_Hardware"), targetBait)
-                task.wait(0.05)
-            end
-            print("🪱 تم شراء " .. baitAmt .. " من: " .. targetBait)
-        end
+        print("🪱 تم شراء " .. baitAmt .. " من: " .. targetBait)
     end
 end
 
@@ -1155,15 +1143,6 @@ while Config.AutoFarmFishing do
         continue 
     end
 
-    -- ✅ قبل كل دورة، نتحقق من الفلوس
-    local currentMoney = Sf:GetMoney()
-    if currentMoney >= Config.DepositThreshold and Config.AutoDepositJob then
-        print("💰 وصلت للحد الأقصى $" .. currentMoney .. "، يتم الإيداع...")
-        CheckAndDeposit()
-        task.wait(0.5)
-        -- ✅ بعد الإيداع نكمل الدورة
-    end
-
 task.wait(1)
 local fishingLevel = Sf:GetSkill("Fishing")
 local targetRod = Config.FishingRod
@@ -1215,96 +1194,84 @@ end
 end
 end
 end
-
--- ✅ الحالة 1 و 2: إذا كان معي طعم
 if hasRod and hasBait then
-    print("✅ لديك طعم وصنارة")
-    
-    -- ✅ بعد الإيداع (أو إذا مافي فلوس حد اقصى) → يروح يفرم
-    Sf:Teleport(Vector3.new(51.177, 243.978, 803.336), Config.AutoFarmFishing)
-    task.wait(0.3)
-    if rodUid and baitUid then
-        if not rodEquipped then
-            Net.get("toggle_equip_item", tostring(rodUid))
-            task.wait(0.1)
-            local char = Client and Client.Character
-            local backpack = Client and Client:FindFirstChild("Backpack")
-            if char and backpack then
-                local tool = backpack:FindFirstChild(actualRodName)
-                local humanoid = char:FindFirstChildOfClass("Humanoid")
-                if tool and humanoid then
-                    humanoid:EquipTool(tool)
-                    task.wait(0.1)
-                end
-            end
-        end
-        Net.get("equip_ammo_on_item", rodUid, baitUid)
-        task.wait(0.1)
-        local char = Client and Client.Character
-        if char then
-            local rodTool = char:WaitForChild(actualRodName, 5)
-            if rodTool then
-                Net.get("throw_rod", rodTool, Vector3.new(86.802726745605, 245.29800415039, 924.455078125))
-                local timeout = tick() + 30
-                local progressBarVisible = false
-                while Config.AutoFarmFishing and tick() < timeout do
-                    task.wait()
-                    local sliderGui = PlayerGui:FindFirstChild("SliderMinigame")
-                    if sliderGui then
-                        local frame = sliderGui:FindFirstChildOfClass("Frame")
-                        if frame and frame.Visible then
-                            progressBarVisible = true
-                            break
-                        end
-                    end
-                end
-                if progressBarVisible then
-                    task.wait(0.01)
-                    Net.send("reel_ended", rodTool, true)
-                end
-            end
-        end
-        task.wait(0.1)
-    end
-
--- ✅ مامعي طعم (الحالة 3 و 4)
+Sf:Teleport(Vector3.new(51.177, 243.978, 803.336), Config.AutoFarmFishing)
+task.wait(0.3)
+if rodUid and baitUid then
+if not rodEquipped then
+Net.get("toggle_equip_item", tostring(rodUid))
+task.wait(0.1)
+local char = Client and Client.Character
+local backpack = Client and Client:FindFirstChild("Backpack")
+if char and backpack then
+local tool = backpack:FindFirstChild(actualRodName)
+local humanoid = char:FindFirstChildOfClass("Humanoid")
+if tool and humanoid then
+humanoid:EquipTool(tool)
+task.wait(0.1)
+end
+end
+end
+Net.get("equip_ammo_on_item", rodUid, baitUid)
+task.wait(0.1)
+local char = Client and Client.Character
+if char then
+local rodTool = char:WaitForChild(actualRodName, 5)
+if rodTool then
+Net.get("throw_rod", rodTool, Vector3.new(86.802726745605, 245.29800415039, 924.455078125))
+local timeout = tick() + 30
+local progressBarVisible = false
+while Config.AutoFarmFishing and tick() < timeout do
+task.wait()
+local sliderGui = PlayerGui:FindFirstChild("SliderMinigame")
+if sliderGui then
+local frame = sliderGui:FindFirstChildOfClass("Frame")
+if frame and frame.Visible then
+progressBarVisible = true
+break
+end
+end
+end
+if progressBarVisible then
+task.wait(0.01)
+Net.send("reel_ended", rodTool, true)
+end
+end
+end
+task.wait(0.1)
+end
 else
-    print("🛒 ليس لديك طعم أو صنارة")
-    
-    -- ✅ بيع الأسماك أولاً
-    local hasFish = false
-    local currentItems = PlayerGui:FindFirstChild("Items")
-    if currentItems then
-        local holding = currentItems:FindFirstChild("ItemsHolder") and currentItems.ItemsHolder:FindFirstChild("ItemsScrollingFrame")
-        if holding then
-            for _, v in pairs(holding:GetChildren()) do
-                if v.Name ~= 'Folder' and v.Name ~= 'UIGridLayout' and v.Name ~= "ItemTemplate" then
-                    local itemType = v:GetAttribute("ItemType")
-                    if itemType and string.lower(tostring(itemType)) == "fish" then
-                        hasFish = true
-                        break
-                    end
-                end
-            end
-        end
-    end
-    
-    if hasFish then
-        local sellBeacon = workspace:FindFirstChild("SellFishBeacon")
-        local touchPart = sellBeacon and sellBeacon:FindFirstChild("TouchPart")
-        if touchPart then
-            Sf:Teleport(touchPart.Position, Config.AutoFarmFishing)
-            task.wait(0.5)
-            Net.get("sell_all_fish")
-            task.wait(1)
-            print("🐟 تم بيع جميع الأسماك")
-        end
-    end
-    
-    -- ✅ بعد الإيداع → يشتري طعم
-    BuySupplies(targetRod, targetBait, hasRod, hasBait)
-    
-    -- ✅ بعد الشراء → يرجع يفرم في الدورة الجاية
+local hasFish = false
+local currentItems = PlayerGui:FindFirstChild("Items")
+if currentItems then
+local holding = currentItems:FindFirstChild("ItemsHolder") and currentItems.ItemsHolder:FindFirstChild("ItemsScrollingFrame")
+if holding then
+for _, v in pairs(holding:GetChildren()) do
+if v.Name ~= 'Folder' and v.Name ~= 'UIGridLayout' and v.Name ~= "ItemTemplate" then
+local itemType = v:GetAttribute("ItemType")
+if itemType and string.lower(tostring(itemType)) == "fish" then
+hasFish = true
+break
+end
+end
+end
+end
+end
+if hasFish then
+local sellBeacon = workspace:FindFirstChild("SellFishBeacon")
+local touchPart = sellBeacon and sellBeacon:FindFirstChild("TouchPart")
+if touchPart then
+Sf:Teleport(touchPart.Position, Config.AutoFarmFishing)
+task.wait(0.5)
+Net.get("sell_all_fish")
+task.wait(1)
+print("🐟 تم بيع جميع الأسماك")
+end
+end
+
+-- ✅ استدعاء دالة الشراء (مع الإيداع أولاً)
+BuySupplies(targetRod, targetBait, hasRod, hasBait)
+
 end
 end
 end)

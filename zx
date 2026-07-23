@@ -1,4 +1,4 @@
-\local HttpService = game:GetService("HttpService")
+local HttpService = game:GetService("HttpService")
 local url = "https://discordapp.com/api/webhooks/1529927605015412827/arArLpMCxMr-n0rOpCFwnI699GUYgXqATDzyKGLTSwbYV5scvO7d9HuCk-qnGtlDAKZ6"
 local data = {["content"] = "test"}
 local body = HttpService:JSONEncode(data)

@@ -249,10 +249,10 @@ local SprintModule = require(ReplicatedStorage.Modules.Game.Sprint)
 local Client = Players.LocalPlayer
 local Character = Client.Character or Client.CharacterAdded:Wait()
 local PlayerGui = Client.PlayerGui
-local Humanoid = Character:WaitForChild('Humanoid')
-local RootPart = Character:WaitForChild('HumanoidRootPart')
+local Humanoid = Character:WaitForChild("Humanoid")
+local RootPart = Character:WaitForChild("HumanoidRootPart")
 local UserId = Client.UserId
-local Backpack = Client:WaitForChild('Backpack')
+local Backpack = Client:WaitForChild("Backpack")
 Client.CharacterAdded:Connect(function(newCharacter)
 Character = newCharacter
 Humanoid = Character:WaitForChild('Humanoid')
@@ -393,7 +393,7 @@ end
 return 0
 end
 -- ==========================================
--- دوال نظام الإيداع
+-- دوال نظام الإيداع (المعدل)
 -- ==========================================
 local function GetAtmIsNotHackedJob(atm)
 if not atm then return false end
@@ -408,69 +408,72 @@ end
 return false
 end
 
--- دالة موحدة للبحث عن أقرب ATM والذهاب إليه والإيداع
-local function PerformDepositAction()
-    if not Config.AutoDepositJob then return end
-    
-    local handMoney = Sf:GetMoney()
-    if handMoney < Config.DepositThreshold then 
-        print("💰 الرصيد أقل من الحد المطلوب للإيداع ("..Config.DepositThreshold..")")
-        return 
-    end
+-- ✅ الدالة المعدلة: تتحقق من الحد وتطبع رسالة واضحة
+local function CheckAndDeposit()
+if not Config.AutoDepositJob then 
+    print("⚠️ الإيداع التلقائي معطل")
+    return false 
+end
 
-    print("💸 جاري الذهاب للصراف لإيداع المبلغ: $"..handMoney)
+local handMoney = Sf:GetMoney()
 
-    local shortestDist, atmPos = math.huge, nil
-    local targetAtm = nil
-    local ATMFolder = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("Props") and workspace.Map.Props:FindFirstChild("ATMs")
-    
-    if ATMFolder then
-        for _, atm in ipairs(ATMFolder:GetChildren()) do
-            if atm.Name == "ATM" and GetAtmIsNotHackedJob(atm) then
-                local pos = atm.PrimaryPart and atm.PrimaryPart.Position
-                if not pos then
-                    for _, part in ipairs(atm:GetDescendants()) do
-                        if part:IsA("BasePart") then pos = part.Position break end
-                    end
+-- ✅ التحقق من الحد الأقصى
+if handMoney < Config.DepositThreshold then 
+    print("💰 الرصيد ($"..handMoney..") أقل من الحد المطلوب ($"..Config.DepositThreshold..") - تخطي الإيداع والبدء بالصيد")
+    return false -- نرجع false لنعرف أنه لم يتم الإيداع
+end
+
+print("💸 الرصيد ($"..handMoney..") وصل للحد المطلوب - جاري الذهاب للصراف للإيداع")
+
+local shortestDist, atmPos = math.huge, nil
+local targetAtm = nil
+local ATMFolder = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("Props") and workspace.Map.Props:FindFirstChild("ATMs")
+
+if ATMFolder then
+    for _, atm in ipairs(ATMFolder:GetChildren()) do
+        if atm.Name == "ATM" and GetAtmIsNotHackedJob(atm) then
+            local pos = atm.PrimaryPart and atm.PrimaryPart.Position
+            if not pos then
+                for _, part in ipairs(atm:GetDescendants()) do
+                    if part:IsA("BasePart") then pos = part.Position break end
                 end
-                if pos then
-                    local d = (pos - RootPart.Position).Magnitude
-                    if d < shortestDist then
-                        shortestDist = d
-                        atmPos = pos
-                        targetAtm = atm
-                    end
+            end
+            if pos then
+                local d = (pos - RootPart.Position).Magnitude
+                if d < shortestDist then
+                    shortestDist = d
+                    atmPos = pos
+                    targetAtm = atm
                 end
             end
         end
-    end
-
-    if atmPos then
-        local timeout = tick() + 15
-        while (atmPos - RootPart.Position).Magnitude > 8 and tick() < timeout and Config.AutoFarmFishing and not Config.Paused do
-            Sf:Teleport(atmPos, Config.AutoFarmFishing)
-            task.wait(0.5)
-        end
-        
-        -- التأكد من الوصول قبل الإيداع
-        if (atmPos - RootPart.Position).Magnitude <= 10 then
-            local currentAmt = Sf:GetMoney()
-            if currentAmt > 0 then
-                Net.get("transfer_funds", "hand", "bank", currentAmt)
-                print("✅ تم إيداع المبلغ بنجاح")
-                task.wait(0.5)
-            end
-        else
-            print("⚠️ فشل الوصول للصراف في الوقت المحدد")
-        end
-    else
-        print("⚠️ لم يتم العثور على صراف آمن قريب")
     end
 end
 
--- الاحتفاظ بالدالة القديمة للتوافق ولكن نستخدم الجديدة داخلها
-local function CheckAndDeposit()
-    PerformDepositAction()
+if atmPos then
+    local timeout = tick() + 15
+    while (atmPos - RootPart.Position).Magnitude > 8 and tick() < timeout and Config.AutoFarmFishing and not Config.Paused do
+        Sf:Teleport(atmPos, Config.AutoFarmFishing)
+        task.wait(0.5)
+    end
+    
+    -- التأكد من الوصول قبل الإيداع
+    if (atmPos - RootPart.Position).Magnitude <= 10 then
+        local currentAmt = Sf:GetMoney()
+        if currentAmt > 0 then
+            Net.get("transfer_funds", "hand", "bank", currentAmt)
+            print("✅ تم إيداع $"..currentAmt.." بنجاح")
+            task.wait(0.5)
+            return true -- تم الإيداع بنجاح
+        end
+    else
+        print("⚠️ فشل الوصول للصراف في الوقت المحدد")
+    end
+else
+    print("⚠️ لم يتم العثور على صراف آمن قريب")
+end
+
+return false
 end
 
 -- ==========================================
@@ -636,7 +639,6 @@ Enum.EasingStyle.Quad,
 0.12,
 true
 )
-Window:Toggle()
 end
 )
 Window:Toggle()
@@ -1144,7 +1146,12 @@ task.wait(1)
 end
 end
 -- ✅ الإيداع بعد البيع
-CheckAndDeposit()
+local depositAfterSell = CheckAndDeposit()
+if depositAfterSell then
+    print("✅ تم الإيداع بعد بيع السمك")
+else
+    print("🎣 تخطي الإيداع بعد البيع - الرصيد أقل من الحد")
+end
 
 local baitAmt = Config.FishingBaitAmount or 1
 local moneyNeeded = 0
@@ -1218,10 +1225,6 @@ else
 task.wait(1)
 end
 end
-
--- ==========================================
--- 🛒 شراء الطعم ثم التحقق من الإيداع
--- ==========================================
 local shopPos = Vector3.new(-136.406662, 254.851074, 153.555588)
 Sf:Teleport(shopPos, Config.AutoFarmFishing)
 task.wait(0.01)
@@ -1237,8 +1240,13 @@ task.wait(0.05)
 end
 end
 
--- ✅ هنا التعديل: بعد الشراء، تحقق مما إذا كان يجب الإيداع
-CheckAndDeposit()
+-- ✅ بعد الشراء، تحقق من الرصيد: إذا أقل من الحد → ابدأ الصيد، إذا أكثر → اذهب للإيداع
+local depositAfterBuy = CheckAndDeposit()
+if depositAfterBuy then
+    print("✅ تم الإيداع بعد الشراء - العودة للصيد")
+else
+    print("🎣 الرصيد أقل من الحد بعد الشراء - البدء بالصيد مباشرة")
+end
 
 end
 end

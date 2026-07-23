@@ -925,7 +925,7 @@ end
 end
 if hasRod and hasBait then
 Sf:Teleport(Vector3.new(51.177, 243.978, 803.336), Config.AutoFarmFishing)
-task.wait(0.3)
+task.wait(0.01)
 if rodUid and baitUid then
 if not rodEquipped then
 Net.get("toggle_equip_item", tostring(rodUid))

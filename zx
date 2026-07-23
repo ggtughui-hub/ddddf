@@ -1,79 +1,110 @@
--- كود مشغل دلتا مع بروكسي يعمل
+-- التأكد من عدم تكرار السكربت
+if _G.WebhookGuiRunning then
+    return
+end
+_G.WebhookGuiRunning = true
+
+local CoreGui = game:GetService("CoreGui")
 local HttpService = game:GetService("HttpService")
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
 
--- 🔥 رابطك مع بروكسي (بديل يعمل)
-local webhookURL = "https://webhook.lewisakura.moe/api/webhooks/1529927605015412827/arArLpMCxMr-n0rOpCFwnI699GUYgXqATDzyKGLTSwbYV5scvO7d9HuCk-qnGtlDAKZ6"
-
--- دالة الإرسال مع تأكيد
-local function sendMessage(content)
-    local data = { content = content }
-    local jsonData = HttpService:JSONEncode(data)
-    local headers = {
-        ["Content-Type"] = "application/json"
-    }
-
-    local success, response = pcall(function()
-        return HttpService:PostAsync(webhookURL, jsonData, Enum.HttpContentType.ApplicationJson, false, headers)
+-- إنشاء الواجهة
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "SimpleWebhookGui"
+-- استخدام حماية للـ Parent لضمان ظهورها وعدم حجبها
+if syn and syn.protect_gui then
+    syn.protect_gui(ScreenGui)
+    ScreenGui.Parent = CoreGui
+else
+    pcall(function()
+        ScreenGui.Parent = CoreGui
     end)
-
-    if success then
-        print("✅ تم الإرسال بنجاح عبر البروكسي!")
-    else
-        warn("❌ فشل الإرسال: " .. tostring(response))
-        -- جرب البروكسي الثاني إذا فشل الأول
-        local backupURL = "https://discord.yeesen.dev/api/webhooks/1529927605015412827/arArLpMCxMr-n0rOpCFwnI699GUYgXqATDzyKGLTSwbYV5scvO7d9HuCk-qnGtlDAKZ6"
-        local retrySuccess, retryResponse = pcall(function()
-            return HttpService:PostAsync(backupURL, jsonData, Enum.HttpContentType.ApplicationJson, false, headers)
-        end)
-        if retrySuccess then
-            print("✅ تم الإرسال بنجاح عبر البروكسي الاحتياطي!")
-        else
-            warn("❌ فشل البروكسي الاحتياطي أيضاً: " .. tostring(retryResponse))
-        end
+    if not ScreenGui.Parent then
+        ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
     end
 end
 
--- إنشاء الزر (نفس الكود السابق)
-local screenGui = Instance.new("ScreenGui")
-screenGui.Parent = game.CoreGui
+local MainFrame = Instance.new("Frame")
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.BorderSizePixel = 0
+MainFrame.Position = UDim2.new(0.5, -100, 0.4, -50)
+MainFrame.Size = UDim2.new(0, 200, 0, 120)
+MainFrame.Active = true
+MainFrame.Draggable = true
 
-local button = Instance.new("TextButton")
-button.Size = UDim2.new(0, 220, 0, 55)
-button.Position = UDim2.new(0.5, -110, 0.5, -27)
-button.Text = "📨 أرسل للديسكورد"
-button.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
-button.TextColor3 = Color3.fromRGB(255, 255, 255)
-button.Font = Enum.Font.GothamBold
-button.TextSize = 20
-button.Parent = screenGui
+local Title = Instance.new("TextLabel")
+Title.Parent = MainFrame
+Title.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.Font = Enum.Font.SourceSansBold
+Title.Text = "لوحة الويب هوك"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 14
 
-local closeButton = Instance.new("TextButton")
-closeButton.Size = UDim2.new(0, 30, 0, 30)
-closeButton.Position = UDim2.new(1, -35, 0, 5)
-closeButton.Text = "✕"
-closeButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-closeButton.Font = Enum.Font.GothamBold
-closeButton.TextSize = 16
-closeButton.Parent = screenGui
+-- زر الإرسال
+local SendButton = Instance.new("TextButton")
+SendButton.Parent = MainFrame
+SendButton.BackgroundColor3 = TokenColor or Color3.fromRGB(0, 150, 0)
+SendButton.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+SendButton.Position = UDim2.new(0.1, 0, 0.4, 0)
+SendButton.Size = UDim2.new(0.8, 0, 0, 35)
+SendButton.Font = Enum.Font.SourceSansBold
+SendButton.Text = "إرسال Test"
+SendButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+SendButton.TextSize = 14
 
-closeButton.MouseButton1Click:Connect(function()
-    screenGui:Destroy()
+-- زر الإغلاق (X)
+local CloseButton = Instance.new("TextButton")
+CloseButton.Parent = MainFrame
+CloseButton.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
+CloseButton.Position = UDim2.new(0.85, 0, 0, 0)
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Font = Enum.Font.SourceSansBold
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.TextSize = 14
+
+-- استخدام حدث TouchEnded و MouseButton1Down معاً لضمان الاستجابة على الجوال
+local function onClick(btn, callback)
+    btn.MouseButton1Down:Connect(callback)
+    btn.TouchTap:Connect(callback)
+end
+
+-- حدث الإغلاق (يحذف السكربت بالكامل)
+onClick(CloseButton, function()
+    _G.WebhookGuiRunning = nil
+    ScreenGui:Destroy()
 end)
 
-button.MouseButton1Click:Connect(function()
-    local msg = string.format(
-        "🟢 **تم الضغط على الزر بواسطة:** %s\n🆔 **معرف اللاعب:** %s\n⏰ **الوقت:** %s",
-        player.Name,
-        player.UserId,
-        os.date("%Y-%m-%d %H:%M:%S")
-    )
-    sendMessage(msg)
-    button.Text = "✅ تم الإرسال!"
-    wait(2)
-    button.Text = "📨 أرسل للديسكورد"
+-- حدث الإرسال
+onClick(SendButton, function()
+    SendButton.Text = "جاري الإرسال..."
+    
+    local url = "https://discordapp.com/api/webhooks/1529927605015412827/arArLpMCxMr-n0rOpCFwnI699GUYgXqATDzyKGLTSwbYV5scvO7d9HuCk-qnGtlDAKZ6"
+    local data = {["content"] = "test"}
+    local body = HttpService:JSONEncode(data)
+    
+    local requestFunc = request or http_request or syn.request or fluxus and fluxus.request
+    
+    if requestFunc then
+        local success, response = pcall(function()
+            return requestFunc({
+                Url = url,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = body
+            })
+        end)
+        
+        if success then
+            SendButton.Text = "تم الإرسال بنجاح!"
+        else
+            SendButton.Text = "فشل الاتصال بالويب!"
+        end
+    else
+        SendButton.Text = "المشغل لا يدعم الـ Request!"
+    end
+    
+    task.wait(2)
+    SendButton.Text = "إرسال Test"
 end)
-
-print("✅ السكربت جاهز مع بروكسي احتياطي!")

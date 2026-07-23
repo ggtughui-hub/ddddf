@@ -695,7 +695,7 @@ c()['Running'] = false
 end
 
 -- ==========================================
--- 🔥 دالة التحقق من امتلاء المخزون بالحد الأقصى
+-- 🔥 دالة التحقق من امتلاء المخزون بالحد الأقصى (جديدة)
 -- ==========================================
 function Sf:IsInventoryFull()
     local maxSlots = 0
@@ -724,6 +724,60 @@ function Sf:IsInventoryFull()
     
     local isFull = currentItems >= maxSlots
     return isFull, currentItems, maxSlots
+end
+
+-- ==========================================
+-- 🎣 دالة البيع التلقائي عند امتلاء المخزون (جديدة)
+-- ==========================================
+function Sf:AutoSellFish()
+    local isFull, current, maxSlots = self:IsInventoryFull()
+    
+    if not isFull then
+        return false
+    end
+    
+    print("📦 المخزون فل! (" .. current .. "/" .. maxSlots .. ") - جاري البيع...")
+    
+    local sellBeacon = workspace:FindFirstChild("SellFishBeacon")
+    local touchPart = sellBeacon and sellBeacon:FindFirstChild("TouchPart")
+    
+    if not touchPart then
+        print("❌ ما لقيت SellFishBeacon")
+        return false
+    end
+    
+    self:Teleport(touchPart.Position, Config.AutoFarmFishing)
+    task.wait(0.5)
+    
+    local hasFish = false
+    local items = PlayerGui:FindFirstChild("Items")
+    if items then
+        local holder = items:FindFirstChild("ItemsHolder")
+        if holder then
+            local scroll = holder:FindFirstChild("ItemsScrollingFrame")
+            if scroll then
+                for _, v in pairs(scroll:GetChildren()) do
+                    if v.Name ~= 'Folder' and v.Name ~= 'UIGridLayout' and v.Name ~= "ItemTemplate" then
+                        local itemType = v:GetAttribute("ItemType")
+                        if itemType and string.lower(tostring(itemType)) == "fish" then
+                            hasFish = true
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    if hasFish then
+        Net.get("sell_all_fish")
+        print("💰 تم البيع التلقائي! المخزون كان فل (" .. current .. "/" .. maxSlots .. ")")
+        task.wait(0.5)
+        CheckAndDeposit()
+        return true
+    end
+    
+    return false
 end
 
 local Players = game:GetService("Players")
@@ -986,7 +1040,8 @@ Value = false,
 Callback = function(v)
 enabled = v
 if not v then
-undergroundBaseCFrame = nilflickering = false
+undergroundBaseCFrame = nil
+flickering = false
 end
 end
 })
@@ -1212,17 +1267,10 @@ end
                                 Net.get("sell_all_fish")
                                 print("💰 تم البيع! المخزون كان فل (" .. current .. "/" .. maxSlots .. ")")
                                 task.wait(0.5)
-                                
-                                -- ==========================================
-                                -- 🔥 إيداع الفلوس بعد البيع مباشرة
-                                -- ==========================================
-                                print("🏦 جاري إيداع الفلوس في البنك...")
-                                CheckAndDeposit()
-                                print("✅ تم الإيداع!")
-                                task.wait(0.5)
                             end
                         end
                         
+                        CheckAndDeposit()
                         task.wait(0.5)
                         continue
                     end
@@ -1574,4 +1622,3 @@ print("✅ Script Loaded Successfully!")
 print("🛡️ Protection System Active - Will pause for 2 seconds if detected")
 print("🎣 Rare Fish Monitoring Active - Will send webhook when rare fish caught!")
 print("📦 Auto Sell When Inventory Full - Will sell automatically when max slots reached!")
-print("🏦 Auto Deposit After Sell - Will deposit money to bank after selling!")

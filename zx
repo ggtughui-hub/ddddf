@@ -211,6 +211,10 @@ local Vechine = require(ReplicatedStorage.Modules.Game.VehicleSystem.Vehicle)
 local CharModule = require(ReplicatedStorage.Modules.Core.Char)
 local SprintModule = require(ReplicatedStorage.Modules.Game.Sprint)
 local CrateController = require(ReplicatedStorage.Modules.Game.CrateSystem.Crate)
+local Settings = {}
+function c()
+return Settings
+end
 local Client = Players.LocalPlayer
 local Character = Client.Character or Client.CharacterAdded:Wait()
 local UserId = Client.UserId
@@ -227,7 +231,42 @@ Backpack = Client:WaitForChild("Backpack")
 end
 )
 local Sf = {}
+local Sprint = require(game:GetService("ReplicatedStorage").Modules.Game.Sprint)
+local consume_stamina = Sprint.consume_stamina
+local SprintBar = debug.getupvalue(consume_stamina, 2).sprint_bar
 local RS = game:GetService("ReplicatedStorage")
+local function ModifyATMPrompts()
+local modifiedCount = 0
+local ATMFolder = workspace:FindFirstChild("Map")
+if not ATMFolder then
+return
+end
+ATMFolder = ATMFolder:FindFirstChild("Props")
+if not ATMFolder then
+return
+end
+ATMFolder = ATMFolder:FindFirstChild("ATMs")
+if not ATMFolder then
+return
+end
+for _, descendant in pairs(ATMFolder:GetDescendants()) do
+if descendant:IsA("ProximityPrompt") then
+descendant.MaxActivationDistance = 22
+modifiedCount = modifiedCount + 1
+end
+end
+end
+ModifyATMPrompts()
+workspace.Map.Props.ATMs.ChildAdded:Connect(function(child)
+if child.Name == "ATM" then
+task.wait(0.1)
+for _, descendant in pairs(child:GetDescendants()) do
+if descendant:IsA("ProximityPrompt") then
+descendant.MaxActivationDistance = 22
+end
+end
+end
+end)
 local SendRemote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Send")
 local oldFireServer
 oldFireServer = hookfunction(SendRemote.FireServer, function(self, ...)
@@ -243,6 +282,18 @@ local Players = game:GetService('Players')
 local RunService = game:GetService('RunService')
 local Net = require(ReplicatedStorage.Modules.Core.Net)
 local SprintModule = require(ReplicatedStorage.Modules.Game.Sprint)
+local ChipPrice = {
+["HackToolBasic"] = 10,
+["HackToolPro"] = 150,
+["HackToolUltimate"] = 350,
+["HackToolQuantum"] = 550
+}
+local HackToolList = {
+[1] = "HackToolBasic",
+[12] = "HackToolPro",
+[50] = "HackToolUltimate",
+[90] = "HackToolQuantum",
+}
 local Client = Players.LocalPlayer
 local Character = Client.Character or Client.CharacterAdded:Wait()
 local PlayerGui = Client.PlayerGui
@@ -256,18 +307,60 @@ Humanoid = Character:WaitForChild('Humanoid')
 RootPart = Character:WaitForChild('HumanoidRootPart')
 end)
 local Config = {
+AutoFarmATM = false,
+EnabledVechine = false,
+EnabledDespoit = false,
+AutoRepair = false,
+SelectSwiperType = "Smart Select",
+SwiperLimit = 3,
+VechineType = "car",
+InstantTeleportSpeed = 35,
+InstantVechineSpeed = 55,
+StopWalking = false,
+Running = false,
+keys = {},
+PathfindingModifierCreater = false,
+EnabledATMViewer = false,
+LastVehicleTeleport = 0,
+AntiDied = false,
+StartFarmJob = false,
+SelectedJob = "None",
+MoneyDraw = 250,
+GoldBox = false,
+Quick11Rounds = 0,
+AutoDepositJob = false,
+DepositThreshold = 500,
+Respawn = false,
 AutoFarmFishing = false,
 FishingRod = "Smart Select",
 FishingWormtec = "Smart Select",
-FishingBaitAmount = 1,
-Respawn = false
+FishingBaitAmount = 1
 }
 local function c()
 return Config
 end
+local Sf = {}
 local func = {}
 local function distTo(v3)
 return (v3 - RootPart.Position).Magnitude
+end
+local function JobNow() return Client:GetAttribute('Job') end
+local function CheckingIsProgess()
+local p = PlayerGui:FindFirstChild('ProgressBar')
+if p then local f = p:FindFirstChild('ProgressBarFrame') if f then return f.Visible end end
+return false
+end
+local function GetAtmIsNotHackedJob(atm)
+if not atm then return false end
+local keys = {}
+for k in pairs(atm:GetAttributes()) do
+table.insert(keys, k)
+end
+table.sort(keys)
+if keys[3] then
+return atm:GetAttribute(keys[3]) == false
+end
+return false
 end
 local function GetNearThing(folder, path, condition)
 local closest, shortestDist = nil, math.huge
@@ -292,6 +385,117 @@ end
 local function FindItem(name)
 local t = Backpack:FindFirstChild(name) or Character:FindFirstChild(name)
 return {t ~= nil, t}
+end
+local function AutoDepositMoney()
+local money = tonumber(PlayerGui.TopRightHud.Holder.Frame.MoneyTextLabel.Text:match('%$(%d+)')) or 0
+if money > 0 then
+Net.get("transfer_funds", "hand", "bank", money)
+task.wait(0.3)
+end
+end
+local StateController = {
+JobSystemActive = false,
+JobCoroutine = nil,
+LastDepositTime = 0
+}
+function StateController:StopJob()
+self.JobSystemActive = false
+Config.StartFarmJob = false
+if self.JobCoroutine then
+local s = coroutine.status(self.JobCoroutine)
+if s == "running" or s == "suspended" then pcall(task.cancel, self.JobCoroutine) end
+self.JobCoroutine = nil
+end
+Sf:ForceStop()
+ClearPathLines()
+end
+function StateController:StartJob()
+if self.JobSystemActive then return end
+self.JobSystemActive = true
+Config.StartFarmJob = true
+if not self.JobCoroutine or coroutine.status(self.JobCoroutine) == "dead" then
+self.JobCoroutine = task.spawn(function()
+if func['StartFarmJob'] then func['StartFarmJob']() end
+end)
+end
+end
+local JANITOR_ATM_CFRAME = CFrame.new(179.275848, 255.290543, -247.853378, -0.875533223, -2.48366234e-08, -0.483157963, 5.75585635e-10, 1, -5.24477919e-08, 0.483157963, -4.61978829e-08, -0.875533223)
+local LOCKED_ATM_MAP = {
+["Janitor"] = JANITOR_ATM_CFRAME,
+}
+local function GetDepositATMPos()
+if Config.AutoDepositJob then
+local cf = LOCKED_ATM_MAP[Config.SelectedJob]
+if cf then return cf.Position end
+end
+local shortestDist, atmPos = math.huge, nil
+for _, atm in ipairs(GetAllATM()) do
+local pos = atm.PrimaryPart and atm.PrimaryPart.Position
+if not pos then
+for _, part in ipairs(atm:GetDescendants()) do
+if part:IsA("BasePart") then pos = part.Position break end
+end
+end
+if pos then
+local d = distTo(pos)
+if d < shortestDist then shortestDist = d atmPos = pos end
+end
+end
+return atmPos
+end
+local function CheckAndDeposit()
+if not Config.AutoDepositJob then return end
+local handMoney = Sf:GetMoney()
+if handMoney < Config.DepositThreshold then return end
+if tick() - StateController.LastDepositTime < 30 then return end
+print("[Deposit] Hand: $" .. handMoney .. " → going to ATM")
+local atmPos = GetDepositATMPos()
+if atmPos then
+local timeout = tick() + 15
+while distTo(atmPos) > 8 and tick() < timeout and Config.StartFarmJob do
+Sf:Teleport(atmPos, Config.StartFarmJob)
+task.wait(0.5)
+end
+local amt = Sf:GetMoney()
+if amt > 0 then
+print("[Deposit] Transferring $" .. amt)
+Net.get("transfer_funds", "hand", "bank", amt)
+task.wait(0.5)
+StateController.LastDepositTime = tick()
+end
+end
+end
+local function FindBestTool(jobType)
+if jobType == "Janitor" then
+for _, toolName in ipairs({"Silver Mop","Gold Mop","Diamond Mop","Bronze Mop","Mop"}) do
+if Backpack:FindFirstChild(toolName) or Character:FindFirstChild(toolName) then return toolName end
+end
+return "Mop"
+end
+return nil
+end
+do
+if not c().PathfindingModifierCreater then
+for _, v in pairs(workspace:GetDescendants()) do
+if v.Name == "DoorSystem" or v.Name == "BasementDoor" then
+for _, x in ipairs(v:GetDescendants()) do
+if x:IsA('BasePart') then
+x.CanCollide = false
+if not x:FindFirstChildOfClass("PathfindingModifier") then
+local modifier = Instance.new("PathfindingModifier")
+modifier.Label = "DoorArea"
+modifier.PassThrough = true
+modifier.Parent = x
+end
+end
+end
+end
+if v.Name == "VehicleBlockers" then
+v:Destroy()
+end
+end
+c().PathfindingModifierCreater = true
+end
 end
 function Sf:dist(Objective)
 return (Objective.Position - RootPart.Position).Magnitude or 0
@@ -375,6 +579,127 @@ end
 function Sf:Ac(...)
 return Net.send(...)
 end
+function Sf:GetChipPrice(d)
+return ChipPrice[d] or nil
+end
+local BIKE_CRATE_COST = 870
+local BIKE_ATM_CFRAME = CFrame.new(179.200882, 255.290543, -236.355896, 0.946762264, 2.58641517e-08, 0.321933597, -2.17450005e-08, 1, -1.63909775e-08, -0.321933597, 8.5179126e-09, 0.946762264)
+function Sf:BuyBikeCrate()
+local bikeCrate = workspace.Map.Tiles.BurgerPlaceTile.UrbanCyclesAndSkates.Interior.Crates["Bike Crate"]
+local touchPart = bikeCrate.Beacon.TouchPart
+if self:GetMoney() < BIKE_CRATE_COST then
+if self:ATMMoney() >= BIKE_CRATE_COST then
+Sf:Teleport(BIKE_ATM_CFRAME.Position, c().AutoFarmATM)
+task.wait(0.1)
+local needed = BIKE_CRATE_COST - self:GetMoney()
+if needed > 0 then
+Net.get("transfer_funds", "bank", "hand", needed)
+task.wait(0.1)
+end
+else
+task.wait(1)
+return
+end
+end
+Sf:Teleport(touchPart.Position, c().AutoFarmATM)
+task.wait(0.1)
+game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Get"):InvokeServer(
+658,
+"open_crate",
+bikeCrate:WaitForChild("CrateOptions"):WaitForChild("Basic"),
+"money"
+)
+task.wait(0.3)
+end
+function Sf:GetCarFromType(types)
+local ScrollingFrame = PlayerGui.Items.ItemsHolder.ItemsScrollingFrame
+if types == "Bike" then
+for _, v in ipairs(ScrollingFrame:GetChildren()) do
+if v:GetAttribute("ItemType") == "bike" then
+return v.ItemName.Text == "BMX" and "BMX" or v.ItemName.Text
+end
+end
+else
+for _, v in ipairs(ScrollingFrame:GetChildren()) do
+if v:GetAttribute('ItemType') == "car" then
+return v.ItemName.Text
+end
+end
+end
+return nil
+end
+function Sf:GetVehicleHealth(vehicleName)
+local ScrollingFrame = PlayerGui.Items.ItemsHolder.ItemsScrollingFrame
+for _, v in ipairs(ScrollingFrame:GetChildren()) do
+if v:GetAttribute('ItemType') == "car" or v:GetAttribute('ItemType') == "bike" then
+if v.ItemName.Text == vehicleName then
+local healthLabel = v:FindFirstChild("ItemHealth")
+if healthLabel and healthLabel.Text then
+local current, max = healthLabel.Text:match("(%d+)/(%d+)")
+return tonumber(current), tonumber(max), v.Name
+end
+end
+end
+end
+return nil, nil, nil
+end
+function Sf:RepairVehicle(uid)
+if not uid then return false end
+local repairCost = 1000
+if Sf:GetMoney() < repairCost then
+if Sf:ATMMoney() >= repairCost then
+Sf:Ac("transfer_funds", "bank", "hand", repairCost)
+task.wait(0.05)
+else
+return false
+end
+end
+Net.get("repair_vehicle", uid)
+task.wait(0.1)
+return true
+end
+function Sf:GetChipFromType(types)
+local chip
+if Sf:GetLevel() >= 10 then
+if tostring(types) == "Smart Select" then
+local SwipperSkill = Sf:GetSkill("Swiper")
+for i, v in pairs(HackToolList) do
+if SwipperSkill >= i then
+chip = v
+end
+end
+else
+for _, v in pairs(HackToolList) do
+if tostring(v) == tostring(types) then
+chip = v
+end
+end
+end
+else
+chip = "Level"
+end
+return chip or "HackToolBasic"
+end
+function Sf:FindClosestAvailableATM()
+local closestATM, shortestDist = nil, math.huge
+for _, atm in ipairs(workspace.Map.Props.ATMs:GetChildren()) do
+if atm.Name == "ATM" then
+local keys = {}
+for k in pairs(atm:GetAttributes()) do
+table.insert(keys, k)
+end
+table.sort(keys)
+if keys[3] and atm:GetAttribute(keys[3]) == false then
+local d = self:dist(atm.Area.CFrame)
+if d < shortestDist then
+closestATM = atm
+shortestDist = d
+end
+end
+end
+end
+return closestATM
+end
 function Sf:ATMMoney()
 for _, v in ipairs(PlayerGui:GetDescendants()) do
 if v:IsA("TextLabel") and string.find(v.Text, "Bank Balance") then
@@ -383,18 +708,28 @@ end
 end
 return 0
 end
-local function GetAtmIsNotHackedJob(atm)
-if not atm then return false end
-local keys = {}
-for k in pairs(atm:GetAttributes()) do
-table.insert(keys, k)
+local function GetAllATM()
+local all = {}
+for _, atm in pairs(workspace.Map.Props.ATMs:GetChildren()) do
+if atm.Name == "ATM" and atm:IsA("Model") then
+table.insert(all, atm)
 end
-table.sort(keys)
-if keys[3] then
-return atm:GetAttribute(keys[3]) == false
 end
-return false
+return all
 end
+local function GetJanitorLockedATMModel()
+local cf = LOCKED_ATM_MAP[Config.SelectedJob]
+if not cf then return nil end
+local target = cf.Position
+for _, atm in ipairs(GetAllATM()) do
+local pos = atm.PrimaryPart and atm.PrimaryPart.Position
+if pos and (pos - target).Magnitude < 5 then
+return atm
+end
+end
+return nil
+end
+function ClearPathLines() end
 function Sf:Teleport(destination, value, t, speed)
 c().StopWalking = false
 c()['Running'] = true
@@ -451,88 +786,717 @@ end
 end
 c()['Running'] = false
 end
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
-local Window = WindUI:CreateWindow({
-Title = "Mercy Hub | Farm",
-Icon = "rbxassetid://118194721156015",
-Author = "[🔫]-Block Spin | discord.gg/z4x4TE6gGT",
-Folder = "boss ter",
-Size = UDim2.fromOffset(580, 460),
-MinSize = Vector2.new(560, 350),
-MaxSize = Vector2.new(850, 560),
-Transparent = true,
-Theme = "Dark",
-Resizable = true,
-SideBarWidth = 200,
-BackgroundImageTransparency = 0.42,
-HideSearchBar = true,
-ScrollBarEnabled = false,
-User = {
-Enabled = true,
-Anonymous = false,
-Name = LocalPlayer.Name,
-Image = "rbxthumb://type=AvatarHeadShot&id=" .. LocalPlayer.UserId .. "&w=150&h=150",
-Callback = function()
-print("User Profile Clicked")
-end,
-},
+local function shouldContinue(value)
+if value == nil then
+return c().AutoFarmATM
+end
+return value
+end
+function Sf:Drive(model, destination, value, t)
+if not model or not model.PrimaryPart then
+c()['Running'] = false
+return
+end
+c()["StopWalking"] = false
+local path = PathfindingService:CreatePath({
+AgentRadius = c().VechineType == "car" and 6 or 3.5,
+AgentHeight = 8,
+AgentCanJump = true,
+AgentMaxSlope = 50,
+AgentCanClimb = false,
+WaypointSpacing = 8,
+Costs = {
+BlockedNode = 100,
+Cars = 1,
+Water = math.huge,
+DoorArea = 1
+}
 })
-Window:EditOpenButton({
-Enabled = false
-})
-local CoreGui = game:GetService("CoreGui")
-local UserInputService = game:GetService("UserInputService")
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "WindUI_Toggle"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = CoreGui
-local ToggleBtn = Instance.new("ImageButton")
-ToggleBtn.Parent = ScreenGui
-ToggleBtn.Size = UDim2.fromOffset(40, 40)
-ToggleBtn.Position = UDim2.new(0.5, -20, 0, 10)
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(30,30,30)
-ToggleBtn.BackgroundTransparency = 0
-ToggleBtn.Image = "rbxassetid://118194721156015"
-ToggleBtn.Active = true
-ToggleBtn.Draggable = true
-ToggleBtn.AutoButtonColor = false
-local Corner = Instance.new("UICorner")
-Corner.CornerRadius = UDim.new(0, 10)
-Corner.Parent = ToggleBtn
-ToggleBtn.MouseButton1Click:Connect(function()
-ToggleBtn:TweenSize(
-UDim2.fromOffset(44, 44),
-Enum.EasingDirection.Out,
-Enum.EasingStyle.Quad,
-0.12,
-true,
-function()
-ToggleBtn:TweenSize(
-UDim2.fromOffset(40, 40),
-Enum.EasingDirection.Out,
-Enum.EasingStyle.Quad,
-0.12,
-true
+local success = pcall(function()
+path:ComputeAsync(model.PrimaryPart.Position, destination)
+end)
+if not success or path.Status ~= Enum.PathStatus.Success then
+c()['Running'] = false
+return
+end
+local waypoints = path:GetWaypoints()
+for i, wp in pairs(waypoints) do
+if not model or not model.PrimaryPart then
+c()['Running'] = false
+return
+end
+local startPos = model:GetPivot().Position
+local heightOffset = 2
+if wp.Action == Enum.PathWaypointAction.Jump then
+heightOffset = 8
+end
+local goalPos = wp.Position + Vector3.new(0, heightOffset, 0)
+local dir = (goalPos - startPos).Unit
+local dist = (goalPos - startPos).Magnitude
+local movedDist = 0
+local speed = c().InstantVechineSpeed or 55
+local startTime = tick()
+while movedDist < dist and shouldContinue(value) do
+task.wait(0)
+if not model or not model.PrimaryPart then
+c()['Running'] = false
+return
+end
+c()['Running'] = true
+if not shouldContinue(value) then
+c()['Running'] = false
+break
+end
+if not Humanoid.Sit then
+c()['Running'] = false
+return self:Drive(model, destination, value, t)
+end
+local dt = tick() - startTime
+movedDist = math.min(dt * speed, dist)
+local newPos = startPos + dir * movedDist
+local lookDirection = dir
+if i < #waypoints then
+local nextWp = waypoints[i + 1]
+lookDirection = (nextWp.Position - wp.Position).Unit
+end
+local Rotation = CFrame.new(newPos) * CFrame.Angles(0, math.atan2(lookDirection.X, lookDirection.Z), 0)
+model:PivotTo(Rotation)
+for _, part in ipairs(model:GetDescendants()) do
+if part:IsA("BasePart") then
+part.AssemblyLinearVelocity = Vector3.zero
+part.AssemblyAngularVelocity = Vector3.zero
+end
+end
+end
+c()['Running'] = false
+if not shouldContinue(value) then
+break
+end
+end
+c()['Running'] = false
+end
+local SafeHeight = {
+MinCharacter = 200,
+MinVehicle = 200,
+Emergency = 50,
+RespawnHeight = 260
+}
+task.spawn(function()
+while task.wait(0) do
+pcall(function()
+if not c().AutoFarmATM then return end
+for _, vehicle in pairs(workspace.Vehicles:GetChildren()) do
+if vehicle:GetAttribute('OwnerUserId') == UserId and vehicle.PrimaryPart then
+local currentY = vehicle.PrimaryPart.Position.Y
+for _, part in pairs(vehicle:GetDescendants()) do
+if part:IsA("BasePart") then
+if part.AssemblyLinearVelocity.Magnitude > 100 then
+part.AssemblyLinearVelocity = part.AssemblyLinearVelocity.Unit * 100
+end
+local verticalVelocity = part.AssemblyLinearVelocity.Y
+if verticalVelocity > 15 then
+part.AssemblyLinearVelocity = Vector3.new(
+part.AssemblyLinearVelocity.X,
+-5,
+part.AssemblyLinearVelocity.Z
 )
 end
+if math.abs(part.AssemblyAngularVelocity.X) > 5 or math.abs(part.AssemblyAngularVelocity.Z) > 5 then
+part.AssemblyAngularVelocity = Vector3.new(0, part.AssemblyAngularVelocity.Y, 0)
+end
+end
+end
+local downforce = 15
+local maxHeightAboveGround = 8
+local rayOrigin = vehicle.PrimaryPart.Position
+local rayDirection = Vector3.new(0, -100, 0)
+local raycastParams = RaycastParams.new()
+raycastParams.FilterDescendantsInstances = {vehicle, Character}
+raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+if rayResult then
+local distanceToGround = (rayOrigin - rayResult.Position).Magnitude
+if distanceToGround > maxHeightAboveGround then
+for _, part in pairs(vehicle:GetDescendants()) do
+if part:IsA("BasePart") then
+part.AssemblyLinearVelocity = Vector3.new(
+part.AssemblyLinearVelocity.X,
+-downforce,
+part.AssemblyLinearVelocity.Z
 )
-Window:Toggle()
-end)
-UserInputService.InputBegan:Connect(function(input, gp)
-if gp then return end
-if input.KeyCode == Enum.KeyCode.T then
-Window:Toggle()
+end
+end
+end
+end
+if currentY < SafeHeight.Emergency then
+vehicle:PivotTo(RootPart.CFrame * CFrame.new(0, 10, 0))
+for _, part in pairs(vehicle:GetDescendants()) do
+if part:IsA("BasePart") then
+part.Velocity = Vector3.zero
+part.RotVelocity = Vector3.zero
+part.AssemblyLinearVelocity = Vector3.zero
+part.AssemblyAngularVelocity = Vector3.zero
+part.Anchored = true
+task.wait(0)
+part.Anchored = false
+end
+end
+elseif currentY < SafeHeight.MinVehicle then
+local targetPos = Vector3.new(
+vehicle.PrimaryPart.Position.X,
+SafeHeight.RespawnHeight,
+vehicle.PrimaryPart.Position.Z
+)
+vehicle:PivotTo(CFrame.new(targetPos) * vehicle:GetPivot().Rotation)
+for _, part in pairs(vehicle:GetDescendants()) do
+if part:IsA("BasePart") then
+part.Velocity = Vector3.zero
+part.RotVelocity = Vector3.zero
+part.AssemblyLinearVelocity = Vector3.zero
+part.AssemblyAngularVelocity = Vector3.zero
+end
+end
+end
+end
 end
 end)
-local EspTab = Window:Tab({
-Title = 'Esp',
-Icon = 'eye',
-})
-EspTab:Section({
-Title = 'ATM Viewer:'
-})
+end
+end)
+task.spawn(function()
+while task.wait(0) do
+pcall(function()
+if not Character or not RootPart then return end
+if not c().AutoFarmATM then return end
+local currentY = RootPart.Position.Y
+if currentY < SafeHeight.Emergency then
+RootPart.Anchored = true
+RootPart.CFrame = CFrame.new(
+RootPart.Position.X,
+SafeHeight.RespawnHeight,
+RootPart.Position.Z
+)
+task.wait(0)
+RootPart.Anchored = false
+elseif currentY < SafeHeight.MinCharacter then
+RootPart.CFrame = CFrame.new(
+RootPart.Position.X,
+SafeHeight.RespawnHeight,
+RootPart.Position.Z
+)
+if RootPart.AssemblyLinearVelocity.Y < -50 then
+RootPart.AssemblyLinearVelocity = Vector3.new(
+RootPart.AssemblyLinearVelocity.X,
+0,
+RootPart.AssemblyLinearVelocity.Z
+)
+end
+end
+end)
+end
+end)
+func['AutoFarmATM'] = function()
+local playerLevel = Sf:GetLevel()
+if playerLevel < 10 then
+return
+end
+while task.wait(0) do
+if not c().AutoFarmATM then
+Sf:ForceStop()
+break
+end
+local vehicleName = Sf:GetCarFromType(c().VechineType)
+if not vehicleName then
+if not c().AutoFarmATM then break end
+Sf:BuyBikeCrate()
+continue
+end
+local existingVehicle = nil
+for _, vehicle in ipairs(workspace.Vehicles:GetChildren()) do
+if vehicle:GetAttribute('OwnerUserId') == UserId then
+existingVehicle = vehicle
+break
+end
+end
+if not existingVehicle then
+local Checker = Sf:GetInfo(vehicleName)
+if Checker[2] and not Checker[4] and not Checker[5] then
+Net.get("toggle_equip_item", tostring(Checker[3]))
+task.wait(0.1)
+elseif Checker[5] then
+task.wait(0.5)
+if not c().AutoFarmATM then break end
+continue
+elseif not Checker[2] then
+task.wait(0.2)
+continue
+end
+end
+local foundVehicle = false
+for _, vehicle in ipairs(workspace.Vehicles:GetChildren()) do
+if not c().AutoFarmATM then
+foundVehicle = true
+break
+end
+if vehicle:GetAttribute('OwnerUserId') == UserId then
+Sf:Ac("lock_vehicle", vehicle, true)
+foundVehicle = true
+if not Humanoid.Sit then
+if not c().AutoFarmATM then break end
+local currentTime = tick()
+if currentTime - c().LastVehicleTeleport >= 0.5 then
+local charLook = RootPart.CFrame.LookVector
+local vehicleRotation = CFrame.new(RootPart.Position + Vector3.new(0, 7, 0)) * CFrame.Angles(0, math.atan2(charLook.X, charLook.Z), 0)
+vehicle:PivotTo(vehicleRotation)
+c().LastVehicleTeleport = currentTime
+task.wait(0)
+end
+if vehicle.PrimaryPart then
+for _, prompt in pairs(vehicle.PrimaryPart:GetDescendants()) do
+if prompt:IsA('ProximityPrompt') then
+fireproximityprompt(prompt)
+task.wait(0)
+end
+end
+end
+end
+local waitCount = 0
+while not Humanoid.Sit and waitCount < 10 and c().AutoFarmATM do
+task.wait(0)
+waitCount = waitCount + 1
+end
+if not Humanoid.Sit then
+task.wait(0.2)
+continue
+end
+if not c().AutoFarmATM then break end
+if Humanoid.Sit then
+if c().AutoRepair then
+local currentHP, maxHP, vehicleUID = Sf:GetVehicleHealth(vehicleName)
+if currentHP and maxHP then
+local hpDifference = maxHP - currentHP
+if hpDifference >= 1000 then
+Net.get("exit_seat")
+local hrp = game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+if hrp then hrp.CFrame = hrp.CFrame * CFrame.new(-5, 0, 0) end
+task.wait(0.05)
+if Sf:RepairVehicle(vehicleUID) then
+task.wait(0.1)
+for _, prompt in pairs(vehicle.PrimaryPart:GetDescendants()) do
+if prompt:IsA('ProximityPrompt') then
+fireproximityprompt(prompt)
+task.wait(0)
+end
+end
+local waitCount = 0
+while not Humanoid.Sit and waitCount < 10 do
+task.wait(0)
+waitCount = waitCount + 1
+end
+end
+end
+end
+end
+if Humanoid.Sit then
+local currentHackTool = Sf:GetChipFromType(c().SelectSwiperType)
+local SwiperMoney = Sf:GetChipPrice(currentHackTool) * c().SwiperLimit
+local hacktool = Sf:GetInfo(currentHackTool)
+if currentHackTool == "Level" then
+task.wait(0.1)
+elseif not hacktool[2] or hacktool[1] <= 0 then
+if not c().AutoFarmATM then break end
+if Sf:GetMoney() < SwiperMoney then
+if Sf:ATMMoney() >= SwiperMoney then
+local closestATM = Sf:FindClosestAvailableATM()
+if closestATM and c().AutoFarmATM then
+local dist = Sf:dist(closestATM.Area)
+if dist > 15 then
+Sf:Drive(vehicle, closestATM.Area.Position, c().AutoFarmATM, closestATM)
+if not c().AutoFarmATM then break end
+task.wait(0)
+else
+RootPart.Anchored = true
+task.wait(0)
+local currentMoney = Sf:GetMoney()
+local chipPrice = Sf:GetChipPrice(currentHackTool)
+local totalNeeded = chipPrice * c().SwiperLimit
+local currentAmount = Sf:GetInfo(currentHackTool)[1] or 0
+local needToBuy = math.max(0, c().SwiperLimit - currentAmount)
+local actualNeeded = chipPrice * needToBuy
+local moneyNeeded = math.max(0, actualNeeded - currentMoney)
+if moneyNeeded > 0 then
+local bankMoney = Sf:ATMMoney()
+if bankMoney >= moneyNeeded then
+Net.get("transfer_funds", "bank", "hand", moneyNeeded)
+task.wait(0.05)
+end
+end
+RootPart.Anchored = false
+task.wait(0)
+end
+end
+else
+task.wait(0.3)
+end
+else
+local shopPos
+local shopZone
+if currentHackTool == "HackToolQuantum" then
+shopZone = workspace:FindFirstChild("ShopZone_IllegalNightclub")
+if shopZone then
+shopPos = shopZone:IsA("BasePart") and shopZone.Position or shopZone:GetPivot().Position
+else
+shopPos = Vector3.new(1168.73132, 256.449524, -347.701691)
+end
+else
+shopZone = workspace:FindFirstChild("ShopZone_Illegal")
+if shopZone then
+shopPos = shopZone:IsA("BasePart") and shopZone.Position or shopZone:GetPivot().Position
+else
+local spinClub = workspace.Map.SpinClub.Exterior:GetChildren()[8]
+if spinClub then
+shopPos = spinClub:IsA("BasePart") and spinClub.Position or spinClub:GetPivot().Position
+else
+shopPos = Vector3.new(-212.181717, 255.525162, 387.744324)
+end
+end
+end
+if not shopZone then
+task.wait(0.2)
+else
+local reachedShop = false
+while not reachedShop and c().AutoFarmATM do
+local dist = Sf:dist(CFrame.new(shopPos))
+if dist > 20 then
+Sf:Drive(vehicle, shopPos, c().AutoFarmATM)
+if not c().AutoFarmATM then break end
+task.wait(0)
+local newDist = Sf:dist(CFrame.new(shopPos))
+if newDist <= 20 then
+reachedShop = true
+end
+else
+reachedShop = true
+end
+end
+if reachedShop and c().AutoFarmATM then
+local maxRetries = 10
+local retryCount = 0
+while retryCount < maxRetries and c().AutoFarmATM do
+local currentAmount = Sf:GetInfo(currentHackTool)[1]
+local needToBuy = c().SwiperLimit - currentAmount
+if needToBuy <= 0 then
+break
+end
+if Sf:GetMoney() < Sf:GetChipPrice(currentHackTool) then
+break
+end
+for i = 1, needToBuy do
+if not c().AutoFarmATM then break end
+if Sf:GetMoney() >= Sf:GetChipPrice(currentHackTool) then
+Net.get("purchase_consumable", shopZone, currentHackTool)
+task.wait(0)
+else
+break
+end
+end
+task.wait(0)
+local newAmount = Sf:GetInfo(currentHackTool)[1]
+if newAmount >= c().SwiperLimit then
+break
+end
+retryCount = retryCount + 1
+end
+end
+end
+end
+elseif hacktool[1] > 0 then
+if not c().AutoFarmATM then break end
+local closestATM = Sf:FindClosestAvailableATM()
+if closestATM and c().AutoFarmATM then
+c().keys = {}
+for k in pairs(closestATM:GetAttributes()) do
+table.insert(c().keys, k)
+end
+table.sort(c().keys)
+if #c().keys >= 3 and not closestATM:GetAttribute(c().keys[3]) then
+local dist = Sf:dist(closestATM.Area)
+if dist > 20 then
+local driveThread = task.spawn(function()
+Sf:Drive(vehicle, closestATM.Area.Position, c().AutoFarmATM, closestATM)
+end)
+repeat
+task.wait(0)
+dist = Sf:dist(closestATM.Area)
+until dist <= 15 or not c().AutoFarmATM or not Humanoid.Sit
+pcall(task.cancel, driveThread)
+Sf:ForceStop()
+if not c().AutoFarmATM then break end
+task.wait(0)
+end
+if #c().keys >= 3 and closestATM:GetAttribute(c().keys[3]) then
+if vehicle.PrimaryPart then
+for _, prompt in pairs(vehicle.PrimaryPart:GetDescendants()) do
+if prompt:IsA('ProximityPrompt') then
+fireproximityprompt(prompt)
+task.wait(0)
+end
+end
+end
+local waitCount = 0
+while not Humanoid.Sit and waitCount < 10 and c().AutoFarmATM do
+task.wait(0)
+waitCount = waitCount + 1
+end
+else
+local carParkPos = vehicle.PrimaryPart and vehicle.PrimaryPart.Position
+Net.get("exit_seat")
+local hrp = game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+if hrp then hrp.CFrame = hrp.CFrame * CFrame.new(-5, 0, 0) end
+task.wait(0.05)
+RootPart.Anchored = false
+local atmPos = closestATM.Area.Position
+Sf:Teleport(atmPos, c().AutoFarmATM, nil, 1000)
+task.wait(0)
+local handMoney = Sf:GetMoney() or 0
+if c().EnabledDespoit and handMoney > 0 then
+Net.get("transfer_funds", "hand", "bank", handMoney)
+task.wait(0.05)
+end
+local hackToolInfo = Sf:GetInfo(currentHackTool)
+if hackToolInfo and hackToolInfo[1] <= 0 then
+RootPart.Anchored = false
+break
+end
+local hackSent = false
+for attempt = 1, 3 do
+if #c().keys >= 3 and closestATM:GetAttribute(c().keys[3]) then break end
+Sf:Ac("request_begin_hacking_3", closestATM, currentHackTool)
+local waitStart = tick()
+repeat task.wait(0) until Sf:CheckingIsMinigame() or (tick() - waitStart) > 2
+if Sf:CheckingIsMinigame() then
+hackSent = true
+break
+end
+task.wait(0.5)
+end
+if hackSent and c().AutoFarmATM then
+task.wait(1.5)
+Sf:Ac("atm_win_3", closestATM)
+task.wait(0.2)
+end
+RootPart.Anchored = false
+task.wait(0.05)
+if carParkPos and c().AutoFarmATM then
+Sf:Teleport(carParkPos, c().AutoFarmATM, nil, 1000)
+task.wait(0)
+local currentTime2 = tick()
+if currentTime2 - c().LastVehicleTeleport >= 0.5 then
+local charLook2 = RootPart.CFrame.LookVector
+local vehicleRotation2 = CFrame.new(carParkPos + Vector3.new(0, 2, 0)) * CFrame.Angles(0, math.atan2(charLook2.X, charLook2.Z), 0)
+vehicle:PivotTo(vehicleRotation2)
+c().LastVehicleTeleport = currentTime2
+task.wait(0)
+end
+if vehicle.PrimaryPart then
+for _, prompt in pairs(vehicle.PrimaryPart:GetDescendants()) do
+if prompt:IsA('ProximityPrompt') then
+fireproximityprompt(prompt)
+task.wait(0)
+end
+end
+end
+local wc = 0
+while not Humanoid.Sit and wc < 15 and c().AutoFarmATM do
+task.wait(0)
+wc = wc + 1
+end
+end
+end
+end
+end
+end
+end
+end
+end
+end
+if not foundVehicle then
+task.wait(0.2)
+end
+if not c().AutoFarmATM then
+Sf:ForceStop()
+break
+end
+end
+Sf:ForceStop()
+end
+task.spawn(function()
+while task.wait(1) do
+if not Config.AutoDepositJob then continue end
+if not Config.StartFarmJob then continue end
+if StateController.IsDepositing then continue end
+local handMoney = Sf:GetMoney()
+if handMoney < Config.DepositThreshold then continue end
+StateController.IsDepositing = true
+Sf:ForceStop()
+task.wait(0.3)
+if Config.AutoDepositJob and LOCKED_ATM_MAP[Config.SelectedJob] then
+local atmModel = GetJanitorLockedATMModel()
+if atmModel and not GetAtmIsNotHackedJob(atmModel) then
+StateController.IsDepositing = false
+if not StateController.JobSystemActive then
+StateController:StartJob()
+end
+continue
+end
+end
+local atmPos = GetDepositATMPos()
+if atmPos then
+local timeout = tick() + 10
+local atmHackedMidway = false
+while distTo(atmPos) > 5 and tick() < timeout do
+if Config.AutoDepositJob and LOCKED_ATM_MAP[Config.SelectedJob] then
+local atmModel = GetJanitorLockedATMModel()
+if atmModel and not GetAtmIsNotHackedJob(atmModel) then
+atmHackedMidway = true
+break
+end
+end
+Sf:Teleport(atmPos, true)
+task.wait(0.3)
+end
+if atmHackedMidway then
+StateController.IsDepositing = false
+if not StateController.JobSystemActive then
+StateController:StartJob()
+end
+continue
+end
+local amt = Sf:GetMoney()
+if amt > 0 then
+Net.get("transfer_funds", "hand", "bank", amt)
+task.wait(0.5)
+end
+end
+StateController.IsDepositing = false
+if not StateController.JobSystemActive then
+StateController:StartJob()
+end
+end
+end)
+func['StartFarmJob'] = function()
+while task.wait(0.2) do
+if not Config.StartFarmJob or not StateController.JobSystemActive then
+Sf:ForceStop()
+break
+end
+CheckAndDeposit()
+local Jobs = Config.SelectedJob
+if Jobs == "None" then
+task.wait(1)
+continue
+end
+if Jobs == "Janitor" then
+if JobNow() ~= "janitor" then
+local dist = distTo(Vector3.new(110, 255, -309))
+if dist < 10 then
+Sf:Ac("apply_for_job", workspace:WaitForChild("BurgePlaceBeacon"))
+else
+Sf:Teleport(Vector3.new(110.824829, 255.190384, -309.609131), Config.StartFarmJob)
+end
+else
+local handMoney = Sf:GetMoney()
+if Config.AutoDepositJob and handMoney >= Config.DepositThreshold then
+task.wait(1)
+else
+if Character:FindFirstChild(FindBestTool('Janitor')) then
+local Level = Sf:GetSkill("Janitor")
+local PuddlesFolder = workspace.Map.Tiles.BurgerPlaceTile.BurgerPlace.Interior.Puddles
+local PuddleNear = GetNearThing(PuddlesFolder, "Puddle", function(puddle)
+local Large = puddle.Name == "LargePuddle"
+local OilPuddle = puddle.Name == "OilPuddle"
+local Toxic = puddle.Name == "ToxicPuddle"
+local Nasty = puddle.Name == "NastyPuddle"
+return puddle:IsA("BasePart")
+and puddle.Size.Magnitude > 0.001
+and puddle.Transparency < 1
+and (not Large or Level >= 5)
+and (not OilPuddle or Level >= 35)
+and (not Toxic or Level >= 50)
+and (not Nasty or Level >= 35)
+end)
+if not CheckingIsProgess() and PuddleNear then
+Sf:Teleport(PuddleNear.Position, Config.StartFarmJob)
+RootPart:PivotTo(CFrame.new(RootPart.CFrame.Position) * CFrame.Angles(0, math.rad(160), 0))
+end
+else
+if FindItem(FindBestTool('Janitor'))[1] then
+Humanoid:EquipTool(FindItem(FindBestTool('Janitor'))[2])
+end
+end
+end
+end
+elseif Jobs == "Quick-11" then
+if JobNow() ~= "shelf_stocker" then
+local dist = distTo(Vector3.new(133.074203, 255.315063, 208.3764049))
+if dist < 10 then
+Sf:Ac("apply_for_job", workspace.Map.Tiles.GasStationTile.Quick11.Interior.Quick11Beacon)
+elseif dist > 10 and dist < 500 then
+Sf:Teleport(Vector3.new(133.074203, 255.315063, 208.3764049), Config.StartFarmJob)
+else
+if Humanoid.Health > 0 then
+if not Client:GetAttribute('IsInCombat') then
+task.wait(2)
+Sf:Ac('request_respawn')
+end
+end
+end
+else
+local handMoney = Sf:GetMoney()
+if Config.AutoDepositJob and handMoney >= Config.DepositThreshold then
+task.wait(1)
+else
+local boxJob = workspace.Map.Tiles.GasStationTile.Quick11.Interior.ShelfStockingJob
+local boxTool = Backpack:FindFirstChild("BoxTool") or Character:FindFirstChild("BoxTool")
+if not boxTool then
+local normalBoxPos = Vector3.new(133.074203, 255.315063, 208.376404)
+local goldenBoxPos = Vector3.new(129.082565, 237.444138, 210.597443)
+if FindItem('Fists')[2] then Humanoid:UnequipTools() end
+if boxJob.GoldenBox.BillboardGui.Frame.StockLeft.Text ~= "Stock: 0/5 (x25)" and Config.GoldBox then
+if distTo(goldenBoxPos) < 5 then
+for i = 1, 5 do
+fireproximityprompt(boxJob.GoldenBox:FindFirstChild('ProximityPrompt'))
+end
+end
+Sf:Teleport(goldenBoxPos, Config.StartFarmJob)
+else
+if distTo(normalBoxPos) < 5 then
+for i = 1, 5 do
+fireproximityprompt(boxJob.NormalBox:FindFirstChild('ProximityPrompt'))
+end
+end
+Sf:Teleport(normalBoxPos, Config.StartFarmJob)
+end
+else
+local shelves = boxJob.Shelves
+if not Character:FindFirstChild("BoxTool") then
+Humanoid:EquipTool(boxTool)
+end
+repeat task.wait(0.2)
+Getunpack(shelves, function(v)
+if v:FindFirstChild("Attachment") then
+Sf:Teleport(v.Position, Config.StartFarmJob)
+RootPart:PivotTo(CFrame.new(RootPart.CFrame.Position) * CFrame.Angles(0, math.rad(160), 0))
+end
+end)
+until not Character:FindFirstChild("BoxTool") or not Config.StartFarmJob
+end
+end
+end
+end
+end
+StateController.JobSystemActive = false
+Sf:ForceStop()
+end
 local ATMViewerEnabled = false
 local function GetAllATMForViewer()
 local atms = {}
@@ -632,6 +1596,88 @@ end
 end)
 end
 end)
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+local Window = WindUI:CreateWindow({
+Title = "Mercy Hub | Farm",
+Icon = "rbxassetid://118194721156015",
+Author = "[🔫]-Block Spin | discord.gg/z4x4TE6gGT",
+Folder = "boss ter",
+Size = UDim2.fromOffset(580, 460),
+MinSize = Vector2.new(560, 350),
+MaxSize = Vector2.new(850, 560),
+Transparent = true,
+Theme = "Dark",
+Resizable = true,
+SideBarWidth = 200,
+BackgroundImageTransparency = 0.42,
+HideSearchBar = true,
+ScrollBarEnabled = false,
+User = {
+Enabled = true,
+Anonymous = false,
+Name = LocalPlayer.Name,
+Image = "rbxthumb://type=AvatarHeadShot&id=" .. LocalPlayer.UserId .. "&w=150&h=150",
+Callback = function()
+print("User Profile Clicked")
+end,
+},
+})
+Window:EditOpenButton({
+Enabled = false
+})
+local CoreGui = game:GetService("CoreGui")
+local UserInputService = game:GetService("UserInputService")
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "WindUI_Toggle"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = CoreGui
+local ToggleBtn = Instance.new("ImageButton")
+ToggleBtn.Parent = ScreenGui
+ToggleBtn.Size = UDim2.fromOffset(40, 40)
+ToggleBtn.Position = UDim2.new(0.5, -20, 0, 10)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(30,30,30)
+ToggleBtn.BackgroundTransparency = 0
+ToggleBtn.Image = "rbxassetid://118194721156015"
+ToggleBtn.Active = true
+ToggleBtn.Draggable = true
+ToggleBtn.AutoButtonColor = false
+local Corner = Instance.new("UICorner")
+Corner.CornerRadius = UDim.new(0, 10)
+Corner.Parent = ToggleBtn
+ToggleBtn.MouseButton1Click:Connect(function()
+ToggleBtn:TweenSize(
+UDim2.fromOffset(44, 44),
+Enum.EasingDirection.Out,
+Enum.EasingStyle.Quad,
+0.12,
+true,
+function()
+ToggleBtn:TweenSize(
+UDim2.fromOffset(40, 40),
+Enum.EasingDirection.Out,
+Enum.EasingStyle.Quad,
+0.12,
+true
+)
+end
+)
+Window:Toggle()
+end)
+UserInputService.InputBegan:Connect(function(input, gp)
+if gp then return end
+if input.KeyCode == Enum.KeyCode.T then
+Window:Toggle()
+end
+end)
+local EspTab = Window:Tab({
+Title = 'Esp',
+Icon = 'eye',
+})
+EspTab:Section({
+Title = 'ATM Viewer:'
+})
 EspTab:Toggle({
 Title = "ATM Viewer",
 Icon = "check",
@@ -924,7 +1970,7 @@ end
 end
 end
 if hasRod and hasBait then
-Sf:Teleport(Vector3.new(184.753616, 254.942337, -751.416321), Config.AutoFarmFishing)
+Sf:Teleport(Vector3.new(85.9, 253, 938.7), Config.AutoFarmFishing)
 task.wait(0.01)
 if rodUid and baitUid then
 if not rodEquipped then
@@ -947,7 +1993,7 @@ local char = Client and Client.Character
 if char then
 local rodTool = char:WaitForChild(actualRodName, 5)
 if rodTool then
-Net.get("throw_rod", rodTool, Vector3.new(183.10549926757812, 249.84375, -761.474365234375))
+Net.get("throw_rod", rodTool, Vector3.new(85.9, 242.0, 924.7))
 local timeout = tick() + 30
 local progressBarVisible = false
 while Config.AutoFarmFishing and tick() < timeout do

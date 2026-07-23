@@ -3,89 +3,88 @@
 local player = game.Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- [تعديل هنا]: حدد أقصى عمق ترغب في النزول إليه تحت الأرض
-local MaxDepth = 15 -- (كلما قل الرقم، كان النزول أقرب لسطح الأرض)
-
 -- التأكد من عدم تكرار الواجهة
-if playerGui:FindFirstChild("DeltaUndergroundGui") then
-	playerGui.DeltaUndergroundGui:Destroy()
+if playerGui:FindFirstChild("DeltaMenuGui") then
+	playerGui.DeltaMenuGui:Destroy()
 end
 
 -- إنشاء واجهة المستخدم (GUI)
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "DeltaUndergroundGui"
+screenGui.Name = "DeltaMenuGui"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = playerGui
 
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 260, 0, 50)
-frame.Position = UDim2.new(0.5, -130, 0.75, 0)
+frame.Size = UDim2.new(0, 200, 0, 130)
+frame.Position = UDim2.new(0.5, -100, 0.7, 0)
 frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 frame.BorderSizePixel = 0
+frame.Active = true
+frame.Draggable = true -- يمكنك سحب القائمة في أي مكان بالشاشة
 frame.Parent = screenGui
 
 local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 10)
 corner.Parent = frame
 
-local label = Instance.new("TextLabel")
-label.Size = UDim2.new(1, 0, 1, 0)
-label.BackgroundTransparency = 1
-label.Text = "اسحب لليمين للنزول"
-label.TextColor3 = Color3.fromRGB(200, 200, 200)
-label.TextSize = 14
-label.Font = Enum.Font.SourceSansBold
-label.Parent = frame
+-- عنوان القائمة
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 30)
+title.BackgroundTransparency = 1
+title.Text = "التحكم في الارتفاع"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextSize = 14
+title.Font = Enum.Font.SourceSansBold
+title.Parent = frame
 
-local sliderButton = Instance.new("TextButton")
-sliderButton.Size = UDim2.new(0, 50, 1, 0)
-sliderButton.Position = UDim2.new(0, 0, 0, 0)
-sliderButton.BackgroundColor3 = Color3.fromRGB(0, 162, 255)
-sliderButton.Text = "|||"
-sliderButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-sliderButton.TextSize = 18
-sliderButton.Font = Enum.Font.SourceSansBold
-sliderButton.Parent = frame
+-- زر التزويد 5+ (ينزلك تحت الأرض)
+local plusButton = Instance.new("TextButton")
+plusButton.Size = UDim2.new(0.85, 0, 0, 35)
+plusButton.Position = UDim2.new(0.075, 0, 0, 40)
+plusButton.BackgroundColor3 = Color3.fromRGB(0, 162, 255)
+plusButton.Text = "تزويد 5+ (نزول)"
+plusButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+plusButton.TextSize = 14
+plusButton.Font = Enum.Font.SourceSansBold
+plusButton.Parent = frame
 
-local btnCorner = Instance.new("UICorner")
-btnCorner.CornerRadius = UDim.new(0, 10)
-btnCorner.Parent = sliderButton
+local btnCorner1 = Instance.new("UICorner")
+btnCorner1.CornerRadius = UDim.new(0, 8)
+btnCorner1.Parent = plusButton
 
-local userInputService = game:GetService("UserInputService")
-local dragging = false
-local mousePos, framePos
+-- زر التنقيص 5- (يرفعك للأعلى)
+local minusButton = Instance.new("TextButton")
+minusButton.Size = UDim2.new(0.85, 0, 0, 35)
+minusButton.Position = UDim2.new(0.075, 0, 0, 82)
+minusButton.BackgroundColor3 = Color3.fromRGB(255, 70, 70)
+minusButton.Text = "تنقيص 5- (صعود)"
+minusButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+minusButton.TextSize = 14
+minusButton.Font = Enum.Font.SourceSansBold
+minusButton.Parent = frame
 
-sliderButton.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-		dragging = true
-		mousePos = input.Position
-		framePos = sliderButton.Position
-		
-		input.Changed:Connect(function()
-			if input.UserInputState == Enum.UserInputState.End then
-				dragging = false
-			end
-		end)
-	end
+local btnCorner2 = Instance.new("UICorner")
+btnCorner2.CornerRadius = UDim.new(0, 8)
+btnCorner2.Parent = minusButton
+
+-- دالة تغيير الارتفاع
+local function adjustHeight(amount)
+	local character = player.Character
+	if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+	local humanoidRootPart = character.HumanoidRootPart
+	
+	local currentPos = humanoidRootPart.Position
+	-- التزويد (موجب) يطرح من محور Y لينزل تحت الأرض، والتنقيص (سالب) يجمع ليرفع للأعلى
+	local targetY = currentPos.Y - amount
+	
+	humanoidRootPart.CFrame = CFrame.new(currentPos.X, targetY, currentPos.Z)
+end
+
+-- ربط الأزرار بالوظائف
+plusButton.MouseButton1Click:Connect(function()
+	adjustHeight(5) -- تزويد 5 (ينزل تحت الأرض)
 end)
 
-userInputService.InputChanged:Connect(function(input)
-	if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-		local character = player.Character
-		if not character or not character:FindFirstChild("HumanoidRootPart") then return end
-		local humanoidRootPart = character.HumanoidRootPart
-		
-		local delta = input.Position - mousePos
-		local maxDistance = frame.AbsoluteSize.X - sliderButton.AbsoluteSize.X
-		local newX = math.clamp(framePos.X.Offset + delta.X, 0, maxDistance)
-		
-		sliderButton.Position = UDim2.new(0, newX, 0, 0)
-		
-		-- حساب النسبة المئوية والنزول بناءً على العمق الذي اخترته
-		local percentage = newX / maxDistance
-		local currentPos = humanoidRootPart.Position
-		local targetY = - (percentage * MaxDepth)
-		
-		humanoidRootPart.CFrame = CFrame.new(currentPos.X, targetY, currentPos.Z)
-	end
+minusButton.MouseButton1Click:Connect(function()
+	adjustHeight(-5) -- تنقيص 5 (يرفع للأعلى)
 end)

@@ -693,93 +693,6 @@ end
 end
 c()['Running'] = false
 end
-
--- ==========================================
--- 🔥 دالة التحقق من امتلاء المخزون بالحد الأقصى (جديدة)
--- ==========================================
-function Sf:IsInventoryFull()
-    local maxSlots = 0
-    local success, result = pcall(function()
-        return Net.get("get_max_inventory_space")
-    end)
-    
-    if success and result then
-        maxSlots = result.hand or 0
-    else
-        maxSlots = 20
-    end
-    
-    local currentItems = 0
-    local Items = PlayerGui:FindFirstChild("Items")
-    if Items then
-        local Holding = Items:FindFirstChild("ItemsHolder") and Items.ItemsHolder:FindFirstChild("ItemsScrollingFrame")
-        if Holding then
-            for _, v in pairs(Holding:GetChildren()) do
-                if v.Name ~= 'Folder' and v.Name ~= 'UIGridLayout' and v.Name ~= "ItemTemplate" then
-                    currentItems = currentItems + 1
-                end
-            end
-        end
-    end
-    
-    local isFull = currentItems >= maxSlots
-    return isFull, currentItems, maxSlots
-end
-
--- ==========================================
--- 🎣 دالة البيع التلقائي عند امتلاء المخزون (جديدة)
--- ==========================================
-function Sf:AutoSellFish()
-    local isFull, current, maxSlots = self:IsInventoryFull()
-    
-    if not isFull then
-        return false
-    end
-    
-    print("📦 المخزون فل! (" .. current .. "/" .. maxSlots .. ") - جاري البيع...")
-    
-    local sellBeacon = workspace:FindFirstChild("SellFishBeacon")
-    local touchPart = sellBeacon and sellBeacon:FindFirstChild("TouchPart")
-    
-    if not touchPart then
-        print("❌ ما لقيت SellFishBeacon")
-        return false
-    end
-    
-    self:Teleport(touchPart.Position, Config.AutoFarmFishing)
-    task.wait(0.5)
-    
-    local hasFish = false
-    local items = PlayerGui:FindFirstChild("Items")
-    if items then
-        local holder = items:FindFirstChild("ItemsHolder")
-        if holder then
-            local scroll = holder:FindFirstChild("ItemsScrollingFrame")
-            if scroll then
-                for _, v in pairs(scroll:GetChildren()) do
-                    if v.Name ~= 'Folder' and v.Name ~= 'UIGridLayout' and v.Name ~= "ItemTemplate" then
-                        local itemType = v:GetAttribute("ItemType")
-                        if itemType and string.lower(tostring(itemType)) == "fish" then
-                            hasFish = true
-                            break
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    if hasFish then
-        Net.get("sell_all_fish")
-        print("💰 تم البيع التلقائي! المخزون كان فل (" .. current .. "/" .. maxSlots .. ")")
-        task.wait(0.5)
-        CheckAndDeposit()
-        return true
-    end
-    
-    return false
-end
-
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
@@ -1213,7 +1126,7 @@ end,
 })
 
 -- ==========================================
--- 🔥 Auto Farm Fishing المعدل بالكامل
+-- Auto Farm Fishing مع فحص Paused + نظام رصد الأسماك
 -- ==========================================
 FishingTab:Toggle({
 Title = "Auto Farm Fishing",
@@ -1223,6 +1136,7 @@ Value = false,
 Callback = function(Value)
 Config.AutoFarmFishing = Value
 if Value then
+-- تشغيل نظام مراقبة الأسماك
 MonitorFish()
 task.spawn(function()
 while Config.AutoFarmFishing do
@@ -1230,294 +1144,245 @@ if Config.Paused then
 task.wait(1)
 continue
 end
-
-                    -- ==========================================
-                    -- 🔥 نفحص إذا المخزون فل بالحد الأقصى
-                    -- ==========================================
-                    local isFull, current, maxSlots = Sf:IsInventoryFull()
-                    
-                    if isFull then
-                        print("📦 المخزون فل! (" .. current .. "/" .. maxSlots .. ") - جاري البيع...")
-                        
-                        local sellBeacon = workspace:FindFirstChild("SellFishBeacon")
-                        local touchPart = sellBeacon and sellBeacon:FindFirstChild("TouchPart")
-                        
-                        if touchPart then
-                            Sf:Teleport(touchPart.Position, Config.AutoFarmFishing)
-                            task.wait(0.5)
-                            
-                            local hasFish = false
-                            local currentItems = PlayerGui:FindFirstChild("Items")
-                            if currentItems then
-                                local holding = currentItems:FindFirstChild("ItemsHolder") and currentItems.ItemsHolder:FindFirstChild("ItemsScrollingFrame")
-                                if holding then
-                                    for _, v in pairs(holding:GetChildren()) do
-                                        if v.Name ~= 'Folder' and v.Name ~= 'UIGridLayout' and v.Name ~= "ItemTemplate" then
-                                            local itemType = v:GetAttribute("ItemType")
-                                            if itemType and string.lower(tostring(itemType)) == "fish" then
-                                                hasFish = true
-                                                break
-                                            end
-                                        end
-                                    end
-                                end
-                            end
-                            
-                            if hasFish then
-                                Net.get("sell_all_fish")
-                                print("💰 تم البيع! المخزون كان فل (" .. current .. "/" .. maxSlots .. ")")
-                                task.wait(0.5)
-                            end
-                        end
-                        
-                        CheckAndDeposit()
-                        task.wait(0.5)
-                        continue
-                    end
-                    
-                    -- ==========================================
-                    -- باقي كود الصيد الأصلي (إذا المخزون مو فل)
-                    -- ==========================================
-                    local fishingLevel = Sf:GetSkill("Fishing")
-                    local targetRod = Config.FishingRod
-                    if targetRod == "Smart Select" then
-                        for _, rod in ipairs(FishingRods) do
-                            if fishingLevel >= rod.Level then
-                                targetRod = rod.Name
-                                break
-                            end
-                        end
-                    end
-                    
-                    local targetBait = Config.FishingWormtec
-                    if targetBait == "Smart Select" then
-                        for _, bait in ipairs(FishingBaits) do
-                            if fishingLevel >= bait.Level then
-                                targetBait = bait.Name
-                                break
-                            end
-                        end
-                    end
-                    
-                    local hasRod = false
-                    local hasBait = false
-                    local rodUid = nil
-                    local baitUid = nil
-                    local actualRodName = targetRod
-                    local rodEquipped = false
-                    
-                    local Items = PlayerGui:FindFirstChild("Items")
-                    if Items then
-                        local Holding = Items:FindFirstChild("ItemsHolder") and Items.ItemsHolder:FindFirstChild("ItemsScrollingFrame")
-                        if Holding then
-                            for _, v in pairs(Holding:GetChildren()) do
-                                if v.Name ~= 'Folder' and v.Name ~= 'UIGridLayout' and v.Name ~= "ItemTemplate" then
-                                    local itemName = v:FindFirstChild("ItemName")
-                                    if itemName and itemName.Text then
-                                        local t = string.lower(itemName.Text)
-                                        if not hasRod and string.find(t, "rod") then
-                                            hasRod = true
-                                            rodUid = v.Name
-                                            actualRodName = itemName.Text
-                                            local eq = v:FindFirstChild("ItemEquipped")
-                                            rodEquipped = eq and eq.Visible or false
-                                        end
-                                        if not hasBait and (string.find(t, "wormtec") or string.find(t, "prawntec")) then
-                                            hasBait = true
-                                            baitUid = v.Name
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                    end
-                    
-                    if hasRod and hasBait then
-                        Sf:Teleport(Vector3.new(51.177, 243.978, 803.336), Config.AutoFarmFishing)
-                        task.wait(0.3)
-                        
-                        if rodUid and baitUid then
-                            if not rodEquipped then
-                                Net.get("toggle_equip_item", tostring(rodUid))
-                                task.wait(0.1)
-                                local char = Client and Client.Character
-                                local backpack = Client and Client:FindFirstChild("Backpack")
-                                if char and backpack then
-                                    local tool = backpack:FindFirstChild(actualRodName)
-                                    local humanoid = char:FindFirstChildOfClass("Humanoid")
-                                    if tool and humanoid then
-                                        humanoid:EquipTool(tool)
-                                        task.wait(0.1)
-                                    end
-                                end
-                            end
-                            
-                            Net.get("equip_ammo_on_item", rodUid, baitUid)
-                            task.wait(0.1)
-                            
-                            local char = Client and Client.Character
-                            if char then
-                                local rodTool = char:WaitForChild(actualRodName, 5)
-                                if rodTool then
-                                    Net.get("throw_rod", rodTool, Vector3.new(86.802726745605, 245.29800415039, 924.455078125))
-                                    local timeout = tick() + 30
-                                    local progressBarVisible = false
-                                    
-                                    while Config.AutoFarmFishing and tick() < timeout do
-                                        task.wait()
-                                        if Config.Paused then break end
-                                        local sliderGui = PlayerGui:FindFirstChild("SliderMinigame")
-                                        if sliderGui then
-                                            local frame = sliderGui:FindFirstChildOfClass("Frame")
-                                            if frame and frame.Visible then
-                                                progressBarVisible = true
-                                                break
-                                            end
-                                        end
-                                    end
-                                    
-                                    if progressBarVisible then
-                                        task.wait(0.01)
-                                        Net.send("reel_ended", rodTool, true)
-                                    end
-                                end
-                            end
-                            task.wait(0.1)
-                        end
-                    else
-                        -- نبيع السمك إذا كان موجود
-                        local hasFish = false
-                        local currentItems = PlayerGui:FindFirstChild("Items")
-                        if currentItems then
-                            local holding = currentItems:FindFirstChild("ItemsHolder") and currentItems.ItemsHolder:FindFirstChild("ItemsScrollingFrame")
-                            if holding then
-                                for _, v in pairs(holding:GetChildren()) do
-                                    if v.Name ~= 'Folder' and v.Name ~= 'UIGridLayout' and v.Name ~= "ItemTemplate" then
-                                        local itemType = v:GetAttribute("ItemType")
-                                        if itemType and string.lower(tostring(itemType)) == "fish" then
-                                            hasFish = true
-                                            break
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                        
-                        if hasFish then
-                            local sellBeacon = workspace:FindFirstChild("SellFishBeacon")
-                            local touchPart = sellBeacon and sellBeacon:FindFirstChild("TouchPart")
-                            if touchPart then
-                                Sf:Teleport(touchPart.Position, Config.AutoFarmFishing)
-                                task.wait(0.5)
-                                Net.get("sell_all_fish")
-                                task.wait(0.3)
-                            end
-                        end
-                        
-                        local usedAtmPos = CheckAndDeposit()
-                        
-                        hasRod = false
-                        hasBait = false
-                        local ItemsAfterDeposit = PlayerGui:FindFirstChild("Items")
-                        if ItemsAfterDeposit then
-                            local HoldingAfter = ItemsAfterDeposit:FindFirstChild("ItemsHolder") and ItemsAfterDeposit.ItemsHolder:FindFirstChild("ItemsScrollingFrame")
-                            if HoldingAfter then
-                                for _, v in pairs(HoldingAfter:GetChildren()) do
-                                    if v.Name ~= 'Folder' and v.Name ~= 'UIGridLayout' and v.Name ~= "ItemTemplate" then
-                                        local itemName = v:FindFirstChild("ItemName")
-                                        if itemName and itemName.Text then
-                                            local t = string.lower(itemName.Text)
-                                            if string.find(t, "rod") then hasRod = true end
-                                            if string.find(t, "wormtec") or string.find(t, "prawntec") then hasBait = true end
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                        
-                        local baitAmt = Config.FishingBaitAmount or 1
-                        local moneyNeeded = 0
-                        if not hasRod then
-                            for _, rod in ipairs(FishingRods) do
-                                if rod.Name == targetRod then moneyNeeded = moneyNeeded + rod.Price break end
-                            end
-                        end
-                        if not hasBait then
-                            for _, bait in ipairs(FishingBaits) do
-                                if bait.Name == targetBait then moneyNeeded = moneyNeeded + (bait.Price * baitAmt) break end
-                            end
-                        end
-                        
-                        while Sf:GetMoney() < moneyNeeded and Config.AutoFarmFishing do
-                            if Config.Paused then
-                                task.wait(1)
-                                continue
-                            end
-                            
-                            local atmPos = usedAtmPos
-                            if not atmPos then
-                                local shortestDist = math.huge
-                                local ATMFolder = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("Props") and workspace.Map.Props:FindFirstChild("ATMs")
-                                if ATMFolder then
-                                    for _, atm in ipairs(ATMFolder:GetChildren()) do
-                                        if atm.Name == "ATM" and GetAtmIsNotHackedJob(atm) then
-                                            local pos = atm.PrimaryPart and atm.PrimaryPart.Position
-                                            if not pos then
-                                                for _, part in ipairs(atm:GetDescendants()) do
-                                                    if part:IsA("BasePart") then pos = part.Position break end
-                                                end
-                                            end
-                                            if pos then
-                                                local d = (pos - RootPart.Position).Magnitude
-                                                if d < shortestDist then
-                                                    shortestDist = d
-                                                    atmPos = pos
-                                                end
-                                            end
-                                        end
-                                    end
-                                end
-                            end
-                            
-                            if not atmPos then
-                                atmPos = Vector3.new(179.200882, 255.290543, -236.355896)
-                            end
-                            
-                            if atmPos then
-                                Sf:Teleport(atmPos, Config.AutoFarmFishing)
-                                local hrp = Character:FindFirstChild("HumanoidRootPart")
-                                if hrp and (hrp.Position - atmPos).Magnitude < 25 then
-                                    local needed = moneyNeeded - Sf:GetMoney()
-                                    if needed > 0 then
-                                        Net.get("transfer_funds", "bank", "hand", needed)
-                                        task.wait(0.5)
-                                    end
-                                end
-                            else
-                                task.wait(1)
-                            end
-                        end
-                        
-                        local shopPos = Vector3.new(-136.406662, 254.851074, 153.555588)
-                        Sf:Teleport(shopPos, Config.AutoFarmFishing)
-                        task.wait(0.01)
-                        
-                        if not hasRod then
-                            Net.get("purchase_consumable", workspace:WaitForChild("ShopZone_Hardware"), targetRod)
-                            task.wait(0.01)
-                        end
-                        if not hasBait then
-                            local baitAmt2 = Config.FishingBaitAmount or 1
-                            for i = 1, baitAmt2 do
-                                Net.get("purchase_consumable", workspace:WaitForChild("ShopZone_Hardware"), targetBait)
-                                task.wait(0.05)
-                            end
-                        end
-                    end
-                end
-            end)
-        end
-    end
+task.wait(1)
+local fishingLevel = Sf:GetSkill("Fishing")
+local targetRod = Config.FishingRod
+if targetRod == "Smart Select" then
+for _, rod in ipairs(FishingRods) do
+if fishingLevel >= rod.Level then
+targetRod = rod.Name
+break
+end
+end
+end
+local targetBait = Config.FishingWormtec
+if targetBait == "Smart Select" then
+for _, bait in ipairs(FishingBaits) do
+if fishingLevel >= bait.Level then
+targetBait = bait.Name
+break
+end
+end
+end
+local hasRod = false
+local hasBait = false
+local rodUid = nil
+local baitUid = nil
+local actualRodName = targetRod
+local rodEquipped = false
+local Items = PlayerGui:FindFirstChild("Items")
+if Items then
+local Holding = Items:FindFirstChild("ItemsHolder") and Items.ItemsHolder:FindFirstChild("ItemsScrollingFrame")
+if Holding then
+for _, v in pairs(Holding:GetChildren()) do
+if v.Name ~= 'Folder' and v.Name ~= 'UIGridLayout' and v.Name ~= "ItemTemplate" then
+local itemName = v:FindFirstChild("ItemName")
+if itemName and itemName.Text then
+local t = string.lower(itemName.Text)
+if not hasRod and string.find(t, "rod") then
+hasRod = true
+rodUid = v.Name
+actualRodName = itemName.Text
+local eq = v:FindFirstChild("ItemEquipped")
+rodEquipped = eq and eq.Visible or false
+end
+if not hasBait and (string.find(t, "wormtec") or string.find(t, "prawntec")) then
+hasBait = true
+baitUid = v.Name
+end
+end
+end
+end
+end
+end
+if hasRod and hasBait then
+Sf:Teleport(Vector3.new(51.177, 243.978, 803.336), Config.AutoFarmFishing)
+task.wait(0.3)
+if rodUid and baitUid then
+if not rodEquipped then
+Net.get("toggle_equip_item", tostring(rodUid))
+task.wait(0.1)
+local char = Client and Client.Character
+local backpack = Client and Client:FindFirstChild("Backpack")
+if char and backpack then
+local tool = backpack:FindFirstChild(actualRodName)
+local humanoid = char:FindFirstChildOfClass("Humanoid")
+if tool and humanoid then
+humanoid:EquipTool(tool)
+task.wait(0.1)
+end
+end
+end
+Net.get("equip_ammo_on_item", rodUid, baitUid)
+task.wait(0.1)
+local char = Client and Client.Character
+if char then
+local rodTool = char:WaitForChild(actualRodName, 5)
+if rodTool then
+Net.get("throw_rod", rodTool, Vector3.new(86.802726745605, 245.29800415039, 924.455078125))
+local timeout = tick() + 30
+local progressBarVisible = false
+while Config.AutoFarmFishing and tick() < timeout do
+task.wait()
+if Config.Paused then break end
+local sliderGui = PlayerGui:FindFirstChild("SliderMinigame")
+if sliderGui then
+local frame = sliderGui:FindFirstChildOfClass("Frame")
+if frame and frame.Visible then
+progressBarVisible = true
+break
+end
+end
+end
+if progressBarVisible then
+task.wait(0.01)
+Net.send("reel_ended", rodTool, true)
+end
+end
+end
+task.wait(0.1)
+end
+else
+-- بيع السمك
+local hasFish = false
+local currentItems = PlayerGui:FindFirstChild("Items")
+if currentItems then
+local holding = currentItems:FindFirstChild("ItemsHolder") and currentItems.ItemsHolder:FindFirstChild("ItemsScrollingFrame")
+if holding then
+for _, v in pairs(holding:GetChildren()) do
+if v.Name ~= 'Folder' and v.Name ~= 'UIGridLayout' and v.Name ~= "ItemTemplate" then
+local itemType = v:GetAttribute("ItemType")
+if itemType and string.lower(tostring(itemType)) == "fish" then
+hasFish = true
+break
+end
+end
+end
+end
+end
+if hasFish then
+local sellBeacon = workspace:FindFirstChild("SellFishBeacon")
+local touchPart = sellBeacon and sellBeacon:FindFirstChild("TouchPart")
+if touchPart then
+Sf:Teleport(touchPart.Position, Config.AutoFarmFishing)
+task.wait(0.5)
+local Net = require(game:GetService("ReplicatedStorage").Modules.Core.Net)
+local moneyBefore = Sf:GetMoney()
+Net.get("sell_all_fish")
+local sellTimeout = tick() + 5
+while tick() < sellTimeout and Config.AutoFarmFishing and not Config.Paused do
+task.wait(0.2)
+if Sf:GetMoney() > moneyBefore then
+break
+end
+end
+task.wait(0.3)
+end
+end
+local usedAtmPos = CheckAndDeposit()
+hasRod = false
+hasBait = false
+local ItemsAfterDeposit = PlayerGui:FindFirstChild("Items")
+if ItemsAfterDeposit then
+local HoldingAfter = ItemsAfterDeposit:FindFirstChild("ItemsHolder") and ItemsAfterDeposit.ItemsHolder:FindFirstChild("ItemsScrollingFrame")
+if HoldingAfter then
+for _, v in pairs(HoldingAfter:GetChildren()) do
+if v.Name ~= 'Folder' and v.Name ~= 'UIGridLayout' and v.Name ~= "ItemTemplate" then
+local itemName = v:FindFirstChild("ItemName")
+if itemName and itemName.Text then
+local t = string.lower(itemName.Text)
+if string.find(t, "rod") then hasRod = true end
+if string.find(t, "wormtec") or string.find(t, "prawntec") then hasBait = true end
+end
+end
+end
+end
+end
+local baitAmt = Config.FishingBaitAmount or 1
+local moneyNeeded = 0
+if not hasRod then
+for _, rod in ipairs(FishingRods) do
+if rod.Name == targetRod then moneyNeeded = moneyNeeded + rod.Price break end
+end
+end
+if not hasBait then
+for _, bait in ipairs(FishingBaits) do
+if bait.Name == targetBait then moneyNeeded = moneyNeeded + (bait.Price * baitAmt) break end
+end
+end
+while Sf:GetMoney() < moneyNeeded and Config.AutoFarmFishing do
+if Config.Paused then
+task.wait(1)
+continue
+end
+local atmPos = usedAtmPos
+if not atmPos then
+local shortestDist = math.huge
+local ATMFolder = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("Props") and workspace.Map.Props:FindFirstChild("ATMs")
+if ATMFolder then
+for _, atm in ipairs(ATMFolder:GetChildren()) do
+if atm.Name == "ATM" and GetAtmIsNotHackedJob(atm) then
+local pos = atm.PrimaryPart and atm.PrimaryPart.Position
+if not pos then
+for _, part in ipairs(atm:GetDescendants()) do
+if part:IsA("BasePart") then pos = part.Position break end
+end
+end
+if pos then
+local d = (pos - RootPart.Position).Magnitude
+if d < shortestDist then
+shortestDist = d
+atmPos = pos
+end
+end
+end
+end
+end
+if not atmPos then
+atmPos = Vector3.new(179.200882, 255.290543, -236.355896)
+end
+end
+if atmPos then
+local reached = false
+local monitorThread = task.spawn(function()
+while not reached and Config.AutoFarmFishing do
+task.wait(0.2)
+if Config.Paused then break end
+end
+end)
+Sf:Teleport(atmPos, Config.AutoFarmFishing)
+reached = true
+local hrp = Character:FindFirstChild("HumanoidRootPart")
+if hrp and (hrp.Position - atmPos).Magnitude < 25 then
+local needed = moneyNeeded - Sf:GetMoney()
+if needed > 0 then
+Net.get("transfer_funds", "bank", "hand", needed)
+task.wait(0.5)
+end
+end
+else
+task.wait(1)
+end
+end
+local shopPos = Vector3.new(-136.406662, 254.851074, 153.555588)
+Sf:Teleport(shopPos, Config.AutoFarmFishing)
+task.wait(0.01)
+if not hasRod then
+Net.get("purchase_consumable", workspace:WaitForChild("ShopZone_Hardware"), targetRod)
+task.wait(0.01)
+end
+if not hasBait then
+local baitAmt = Config.FishingBaitAmount or 1
+for i = 1, baitAmt do
+Net.get("purchase_consumable", workspace:WaitForChild("ShopZone_Hardware"), targetBait)
+task.wait(0.05)
+end
+end
+end
+end
+end)
+end
+end
 })
 
 FishingTab:Dropdown({
@@ -1621,4 +1486,3 @@ end
 print("✅ Script Loaded Successfully!")
 print("🛡️ Protection System Active - Will pause for 2 seconds if detected")
 print("🎣 Rare Fish Monitoring Active - Will send webhook when rare fish caught!")
-print("📦 Auto Sell When Inventory Full - Will sell automatically when max slots reached!")

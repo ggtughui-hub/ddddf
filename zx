@@ -2604,7 +2604,7 @@ FishingTab:Toggle({
                             if char then
                                 local rodTool = char:WaitForChild(actualRodName, 5)
                                 if rodTool then
-                                    Net.get("throw_rod", rodTool, Vector3.new(85.9, 249, 924.7))
+                                    Net.get("throw_rod", rodTool, Vector3.new(84.92, 249, 925.144))
                                     
                                     local timeout = tick() + 30
                                     local progressBarVisible = false

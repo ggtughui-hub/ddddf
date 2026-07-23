@@ -973,10 +973,8 @@ end
 end
 task.wait(0.1)
 end
-
--- ✅ تم تعديل طريقة البيع هنا لاستخدام InvokeServer مباشرة
 else
--- فحص وجود سمك في الحقيبة
+-- ✅ تم تعديل طريقة البيع هنا حسب طلبك
 local hasFish = false
 local currentItems = PlayerGui:FindFirstChild("Items")
 if currentItems then
@@ -993,41 +991,16 @@ end
 end
 end
 end
-
 if hasFish then
 local sellBeacon = workspace:FindFirstChild("SellFishBeacon")
 local touchPart = sellBeacon and sellBeacon:FindFirstChild("TouchPart")
 if touchPart then
 Sf:Teleport(touchPart.Position, Config.AutoFarmFishing)
-task.wait(0.8)
-
--- استخدام أمر بيع كل الأسماك مرة واحدة
-local Event = game:GetService("ReplicatedStorage").Remotes.Get
-Event:InvokeServer("sell_all_fish")
+task.wait(0.5)
+-- الأمر الجديد لبيع كل الأسماك
+local Net = require(game:GetService("ReplicatedStorage").Modules.Core.Net)
+Net.get("sell_all_fish")
 task.wait(1)
-
--- التأكد من أن السمك تم بيعه، وإذا لم يتم بيعه نعيد المحاولة
-local stillHasFish = false
-local checkItems = PlayerGui:FindFirstChild("Items")
-if checkItems then
-local checkHolding = checkItems:FindFirstChild("ItemsHolder") and checkItems.ItemsHolder:FindFirstChild("ItemsScrollingFrame")
-if checkHolding then
-for _, v in pairs(checkHolding:GetChildren()) do
-if v.Name ~= 'Folder' and v.Name ~= 'UIGridLayout' and v.Name ~= "ItemTemplate" then
-local itemType = v:GetAttribute("ItemType")
-if itemType and string.lower(tostring(itemType)) == "fish" then
-stillHasFish = true
-break
-end
-end
-end
-end
-end
-
-if stillHasFish then
-Event:InvokeServer("sell_all_fish")
-task.wait(1)
-end
 end
 end
 

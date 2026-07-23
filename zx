@@ -289,14 +289,25 @@ end)
 -- إعدادات الكونفيج (مع متغير Paused للحماية)
 -- ==========================================
 local Config = {
-AutoFarmFishing = false,
-FishingRod = "Smart Select",
-FishingWormtec = "Smart Select",
-FishingBaitAmount = 1,
-Respawn = false,
-AutoDepositJob = false,
-DepositThreshold = 500,
-Paused = false
+    AutoFarmFishing = false,
+    FishingRod = "Smart Select",
+    FishingWormtec = "Smart Select",
+    FishingBaitAmount = 1,
+    Respawn = false,
+    AutoDepositJob = false,
+    DepositThreshold = 500,
+    Paused = false,
+    
+    -- ==========================================
+    -- 🆕 إعدادات الفارم تحت الأرض
+    -- ==========================================
+    UndergroundFarm = false,      -- تشغيل/إيقاف
+    UndergroundDepth = -80,       -- العمق الافتراضي
+    FishingSpot = Vector3.new(51.177, 243.978, 803.336), -- مكان الصيد
+    SellSpot = nil,               -- سيتم تحديثه تلقائياً
+    AtmSpot = nil,                -- سيتم تحديثه تلقائياً
+    ShopSpot = Vector3.new(-136.406662, 254.851074, 153.555588),
+    IsUnderground = false,        -- حالة اللاعب (تحت الأرض أو فوق)
 }
 local function c()
 return Config
@@ -546,6 +557,111 @@ local function MonitorFish()
 end
 
 -- ==========================================
+-- 🆕 دوال الفارم تحت الأرض
+-- ==========================================
+
+-- دالة لحساب الموقع تحت الأرض
+local function GetUndergroundPosition(originalPos, depth)
+    return Vector3.new(originalPos.X, depth, originalPos.Z)
+end
+
+-- دالة للنزول تحت الأرض
+function Sf:GoUnderground(targetPos)
+    if not Config.UndergroundFarm then return targetPos end
+    
+    local depth = Config.UndergroundDepth
+    local undergroundPos = GetUndergroundPosition(targetPos, depth)
+    Config.IsUnderground = true
+    return undergroundPos
+end
+
+-- دالة للصعود فوق الأرض
+function Sf:GoAboveGround(targetPos)
+    if not Config.UndergroundFarm then return targetPos end
+    
+    local abovePos = Vector3.new(targetPos.X, targetPos.Y, targetPos.Z)
+    Config.IsUnderground = false
+    return abovePos
+end
+
+-- دالة لتحديث موقع البيع التلقائي
+local function GetSellPosition()
+    local sellBeacon = workspace:FindFirstChild("SellFishBeacon")
+    if sellBeacon then
+        local touchPart = sellBeacon:FindFirstChild("TouchPart")
+        if touchPart then
+            Config.SellSpot = touchPart.Position
+            return Config.SellSpot
+        end
+    end
+    return Vector3.new(0, 250, 0) -- موقع افتراضي
+end
+
+-- دالة لتحديد موقع ATM التلقائي
+local function GetAtmPosition()
+    local ATMFolder = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("Props") and workspace.Map.Props:FindFirstChild("ATMs")
+    if ATMFolder then
+        for _, atm in ipairs(ATMFolder:GetChildren()) do
+            if atm.Name == "ATM" and GetAtmIsNotHackedJob(atm) then
+                local pos = atm.PrimaryPart and atm.PrimaryPart.Position
+                if not pos then
+                    for _, part in ipairs(atm:GetDescendants()) do
+                        if part:IsA("BasePart") then pos = part.Position break end
+                    end
+                end
+                if pos then
+                    Config.AtmSpot = pos
+                    return pos
+                end
+            end
+        end
+    end
+    return Vector3.new(179.200882, 255.290543, -236.355896) -- موقع افتراضي
+end
+
+-- دالة Teleport معدلة مع دعم الفارم تحت الأرض
+local originalTeleport = Sf.Teleport
+Sf.Teleport = function(self, destination, value, t, speed)
+    local targetPos = destination
+    
+    -- إذا كان الفارم تحت الأرض مفعل
+    if Config.UndergroundFarm and Config.AutoFarmFishing then
+        -- نتحقق إذا كان الموقع هو مكان البيع أو ATM أو المتجر
+        local isSellSpot = Config.SellSpot and (destination - Config.SellSpot).Magnitude < 5
+        local isAtmSpot = Config.AtmSpot and (destination - Config.AtmSpot).Magnitude < 20
+        local isShopSpot = (destination - Config.ShopSpot).Magnitude < 20
+        local isFishingSpot = (destination - Config.FishingSpot).Magnitude < 5
+        
+        if isSellSpot or isAtmSpot or isShopSpot then
+            -- نطلع فوق الأرض للبيع/الإيداع/الشراء
+            targetPos = self:GoAboveGround(destination)
+            Config.IsUnderground = false
+        elseif isFishingSpot or Config.IsUnderground then
+            -- ننزل تحت الأرض للصيد
+            targetPos = self:GoUnderground(destination)
+            Config.IsUnderground = true
+        else
+            -- أي مكان آخر: ننزل تحت الأرض
+            targetPos = self:GoUnderground(destination)
+            Config.IsUnderground = true
+        end
+    end
+    
+    -- استدعاء الدالة الأصلية مع الموقع المعدل
+    return originalTeleport(self, targetPos, value, t, speed)
+end
+
+-- تحديث مواقع البيع و ATM تلقائياً
+task.spawn(function()
+    while task.wait(5) do
+        if Config.UndergroundFarm then
+            GetSellPosition()
+            GetAtmPosition()
+        end
+    end
+end)
+
+-- ==========================================
 -- دوال نظام الإيداع (معدل - يرجع موقع الـ ATM)
 -- ==========================================
 local function GetAtmIsNotHackedJob(atm)
@@ -588,6 +704,7 @@ end
 if atmPos then
 local timeout = tick() + 15
 while (atmPos - RootPart.Position).Magnitude > 8 and tick() < timeout and Config.AutoFarmFishing and not Config.Paused do
+-- نطلع فوق الأرض للإيداع
 Sf:Teleport(atmPos, Config.AutoFarmFishing)
 task.wait(0.5)
 end
@@ -746,7 +863,8 @@ function Sf:AutoSellFish()
         return false
     end
     
-    self:Teleport(touchPart.Position, Config.AutoFarmFishing)
+    -- نطلع فوق الأرض للبيع
+    Sf:Teleport(touchPart.Position, Config.AutoFarmFishing)
     task.wait(0.5)
     
     local hasFish = false
@@ -1213,6 +1331,89 @@ end,
 })
 
 -- ==========================================
+-- 🆕 خيارات الفارم تحت الأرض
+-- ==========================================
+FishingTab:Section({ 
+    Title = "🌍 Underground Farm Settings:" 
+})
+
+FishingTab:Toggle({
+    Title = "Enable Underground Farm",
+    Desc = "الصيد تحت الأرض - يطلع فقط للبيع والإيداع والشراء",
+    Icon = "check",
+    Type = "Checkbox",
+    Value = false,
+    Callback = function(Value)
+        Config.UndergroundFarm = Value
+        if Value then
+            print("🌍 Underground Farm Enabled! Depth: " .. Config.UndergroundDepth)
+            -- تحديث المواقع
+            GetSellPosition()
+            GetAtmPosition()
+        else
+            print("🌍 Underground Farm Disabled")
+            Config.IsUnderground = false
+        end
+    end,
+})
+
+-- شريط التحكم في العمق مع عرض رقمي
+local DepthSlider = FishingTab:Slider({
+    Title = "Underground Depth",
+    Desc = "العمق تحت الأرض (قيمة سالبة)",
+    Step = 5,
+    Value = {
+        Min = -200,
+        Max = -10,
+        Default = -80
+    },
+    Callback = function(Value)
+        Config.UndergroundDepth = Value
+        print("🌍 Depth set to: " .. Value)
+    end,
+})
+
+-- عرض العمق الحالي (نص ثابت يتحدث)
+FishingTab:Label({
+    Title = "Current Depth: " .. Config.UndergroundDepth,
+    Icon = "info",
+})
+
+-- زر لتحديث موقع الصيد الحالي
+FishingTab:Button({
+    Title = "Set Current Position as Fishing Spot",
+    Icon = "map-pin",
+    Callback = function()
+        local hrp = Character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            Config.FishingSpot = hrp.Position
+            print("🎯 Fishing spot set to: " .. tostring(Config.FishingSpot))
+        else
+            warn("❌ Could not find HumanoidRootPart!")
+        end
+    end,
+})
+
+-- زر للرجوع تحت الأرض يدوياً
+FishingTab:Button({
+    Title = "Go Underground Now",
+    Icon = "arrow-down",
+    Callback = function()
+        if Config.UndergroundFarm then
+            local hrp = Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local undergroundPos = GetUndergroundPosition(hrp.Position, Config.UndergroundDepth)
+                hrp.CFrame = CFrame.new(undergroundPos)
+                Config.IsUnderground = true
+                print("🌍 Teleported underground to: " .. tostring(undergroundPos))
+            end
+        else
+            warn("❌ Enable Underground Farm first!")
+        end
+    end,
+})
+
+-- ==========================================
 -- 🔥 Auto Farm Fishing المعدل بالكامل
 -- ==========================================
 FishingTab:Toggle({
@@ -1243,6 +1444,7 @@ end
                         local touchPart = sellBeacon and sellBeacon:FindFirstChild("TouchPart")
                         
                         if touchPart then
+                            -- نطلع فوق الأرض للبيع
                             Sf:Teleport(touchPart.Position, Config.AutoFarmFishing)
                             task.wait(0.5)
                             
@@ -1333,7 +1535,9 @@ end
                     end
                     
                     if hasRod and hasBait then
-                        Sf:Teleport(Vector3.new(51.177, 243.978, 803.336), Config.AutoFarmFishing)
+                        -- نستخدم موقع الصيد المخزن
+                        local fishingPos = Config.FishingSpot
+                        Sf:Teleport(fishingPos, Config.AutoFarmFishing)
                         task.wait(0.3)
                         
                         if rodUid and baitUid then
@@ -1407,6 +1611,7 @@ end
                             local sellBeacon = workspace:FindFirstChild("SellFishBeacon")
                             local touchPart = sellBeacon and sellBeacon:FindFirstChild("TouchPart")
                             if touchPart then
+                                -- نطلع فوق الأرض للبيع
                                 Sf:Teleport(touchPart.Position, Config.AutoFarmFishing)
                                 task.wait(0.5)
                                 Net.get("sell_all_fish")
@@ -1484,6 +1689,7 @@ end
                             end
                             
                             if atmPos then
+                                -- نطلع فوق الأرض للإيداع
                                 Sf:Teleport(atmPos, Config.AutoFarmFishing)
                                 local hrp = Character:FindFirstChild("HumanoidRootPart")
                                 if hrp and (hrp.Position - atmPos).Magnitude < 25 then
@@ -1499,6 +1705,7 @@ end
                         end
                         
                         local shopPos = Vector3.new(-136.406662, 254.851074, 153.555588)
+                        -- نطلع فوق الأرض للشراء
                         Sf:Teleport(shopPos, Config.AutoFarmFishing)
                         task.wait(0.01)
                         
@@ -1622,3 +1829,4 @@ print("✅ Script Loaded Successfully!")
 print("🛡️ Protection System Active - Will pause for 2 seconds if detected")
 print("🎣 Rare Fish Monitoring Active - Will send webhook when rare fish caught!")
 print("📦 Auto Sell When Inventory Full - Will sell automatically when max slots reached!")
+print("🌍 Underground Farm Active - Fishing underground, surfaces for sell/deposit/buy!")

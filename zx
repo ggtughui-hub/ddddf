@@ -1,5 +1,5 @@
 -- ==========================================
--- الكود الكامل مع نظام الحماية المتكامل وتصحيح الإيداع التلقائي
+-- الكود الكامل مع نظام الحماية المتكامل وتعديلات الإيداع
 -- ==========================================
 for _, obj in pairs(workspace:GetDescendants()) do
 if obj:IsA("Model") and obj.Name == "DoorSystem" then
@@ -249,10 +249,10 @@ local SprintModule = require(ReplicatedStorage.Modules.Game.Sprint)
 local Client = Players.LocalPlayer
 local Character = Client.Character or Client.CharacterAdded:Wait()
 local PlayerGui = Client.PlayerGui
-local Humanoid = Character:WaitForChild("Humanoid")
-local RootPart = Character:WaitForChild("HumanoidRootPart")
+local Humanoid = Character:WaitForChild('Humanoid')
+local RootPart = Character:WaitForChild('HumanoidRootPart')
 local UserId = Client.UserId
-local Backpack = Client:WaitForChild("Backpack")
+local Backpack = Client:WaitForChild('Backpack')
 Client.CharacterAdded:Connect(function(newCharacter)
 Character = newCharacter
 Humanoid = Character:WaitForChild('Humanoid')
@@ -269,7 +269,7 @@ FishingBaitAmount = 1,
 Respawn = false,
 AutoDepositJob = false,
 DepositThreshold = 500,
-Paused = false
+Paused = false  -- ✅ متغير التحكم في إيقاف الفارم مؤقتاً
 }
 local function c()
 return Config
@@ -408,16 +408,20 @@ end
 return false
 end
 
--- ✅ الدالة المصححة - بدون حلقة مكررة
-local function CheckAndDeposit()
+-- دالة موحدة للبحث عن أقرب ATM والذهاب إليه والإيداع
+local function PerformDepositAction()
     if not Config.AutoDepositJob then return end
     
     local handMoney = Sf:GetMoney()
-    if handMoney < Config.DepositThreshold then return end
-    
-    print("💰 Money limit reached! Going to deposit...")
-    
+    if handMoney < Config.DepositThreshold then 
+        print("💰 الرصيد أقل من الحد المطلوب للإيداع ("..Config.DepositThreshold..")")
+        return 
+    end
+
+    print("💸 جاري الذهاب للصراف لإيداع المبلغ: $"..handMoney)
+
     local shortestDist, atmPos = math.huge, nil
+    local targetAtm = nil
     local ATMFolder = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("Props") and workspace.Map.Props:FindFirstChild("ATMs")
     
     if ATMFolder then
@@ -434,30 +438,43 @@ local function CheckAndDeposit()
                     if d < shortestDist then
                         shortestDist = d
                         atmPos = pos
+                        targetAtm = atm
                     end
                 end
             end
         end
     end
-    
+
     if atmPos then
-        -- ✅ استدعاء واحد فقط لـ Teleport بدلاً من حلقة
-        Sf:Teleport(atmPos, Config.AutoFarmFishing)
-        task.wait(1.5) -- انتظار الوصول
+        local timeout = tick() + 15
+        while (atmPos - RootPart.Position).Magnitude > 8 and tick() < timeout and Config.AutoFarmFishing and not Config.Paused do
+            Sf:Teleport(atmPos, Config.AutoFarmFishing)
+            task.wait(0.5)
+        end
         
-        local amt = Sf:GetMoney()
-        if amt > 0 then
-            Net.get("transfer_funds", "hand", "bank", amt)
-            task.wait(1)
-            print("✅ Deposited: $" .. amt)
+        -- التأكد من الوصول قبل الإيداع
+        if (atmPos - RootPart.Position).Magnitude <= 10 then
+            local currentAmt = Sf:GetMoney()
+            if currentAmt > 0 then
+                Net.get("transfer_funds", "hand", "bank", currentAmt)
+                print("✅ تم إيداع المبلغ بنجاح")
+                task.wait(0.5)
+            end
+        else
+            print("⚠️ فشل الوصول للصراف في الوقت المحدد")
         end
     else
-        warn("⚠️ No available ATM found!")
+        print("⚠️ لم يتم العثور على صراف آمن قريب")
     end
 end
 
+-- الاحتفاظ بالدالة القديمة للتوافق ولكن نستخدم الجديدة داخلها
+local function CheckAndDeposit()
+    PerformDepositAction()
+end
+
 -- ==========================================
--- ⭐ نظام الحماية المتكامل
+-- ⭐ نظام الحماية المتكامل (المعدل)
 -- ==========================================
 local function SetupNotificationMonitor()
 local SendRemote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Send")
@@ -468,13 +485,17 @@ local message = args[2] or ""
 if message:find("Anti noclip triggered") or message:find("Teleport detected") then
 if Config.AutoFarmFishing then
 task.spawn(function()
+-- ✅ إيقاف الفارم مؤقتاً
 Config.Paused = true
 print("🚫 تم اكتشاف حماية - إيقاف الفارم لمدة ثانيتين")
+-- إيقاف أي حركة حالية
 if c() then
 c().StopWalking = true
 c()['Running'] = false
 end
+-- الانتظار لمدة ثانيتين
 task.wait(2)
+-- استئناف الفارم
 Config.Paused = false
 print("✅ تم استئناف الفارم")
 end)
@@ -483,6 +504,7 @@ end
 end
 end)
 end
+-- ✅ تشغيل نظام الحماية
 SetupNotificationMonitor()
 -- ==========================================
 -- دالة Teleport المعدلة مع فحص Paused
@@ -511,6 +533,7 @@ end
 if path.Status == Enum.PathStatus.Success then
 local waypoints = path:GetWaypoints()
 for _, wp in pairs(waypoints) do
+-- ✅ فحص إذا كان الفارم متوقف مؤقتاً
 if Config.Paused then
 c()['Running'] = false
 break
@@ -526,6 +549,7 @@ local startTime = tick()
 while movedDist < dist and not c().StopWalking and value do
 task.wait()
 c()['Running'] = true
+-- ✅ فحص التوقف المؤقت
 if Config.Paused or c().StopWalking or not value or Humanoid.Health <= 0 then
 c()['Running'] = false
 break
@@ -975,7 +999,7 @@ Config.DepositThreshold = Value
 end,
 })
 -- ==========================================
--- Auto Farm Fishing مع فحص Paused والإيداع
+-- Auto Farm Fishing مع فحص Paused
 -- ==========================================
 FishingTab:Toggle({
 Title = "Auto Farm Fishing",
@@ -987,16 +1011,11 @@ Config.AutoFarmFishing = Value
 if Value then
 task.spawn(function()
 while Config.AutoFarmFishing do
+-- ✅ فحص نظام الحماية (إيقاف مؤقت لمدة ثانيتين إذا تم الكشف)
 if Config.Paused then
 task.wait(1)
 continue
 end
-
--- ✅ فحص دوري للإيداع إذا وصل المال للحد الأقصى
-if Config.AutoDepositJob and Sf:GetMoney() >= Config.DepositThreshold then
-    CheckAndDeposit()
-end
-
 task.wait(1)
 local fishingLevel = Sf:GetSkill("Fishing")
 local targetRod = Config.FishingRod
@@ -1096,6 +1115,7 @@ end
 task.wait(0.1)
 end
 else
+-- بيع السمك
 local hasFish = false
 local currentItems = PlayerGui:FindFirstChild("Items")
 if currentItems then
@@ -1125,6 +1145,7 @@ end
 end
 -- ✅ الإيداع بعد البيع
 CheckAndDeposit()
+
 local baitAmt = Config.FishingBaitAmount or 1
 local moneyNeeded = 0
 if not hasRod then
@@ -1197,6 +1218,10 @@ else
 task.wait(1)
 end
 end
+
+-- ==========================================
+-- 🛒 شراء الطعم ثم التحقق من الإيداع
+-- ==========================================
 local shopPos = Vector3.new(-136.406662, 254.851074, 153.555588)
 Sf:Teleport(shopPos, Config.AutoFarmFishing)
 task.wait(0.01)
@@ -1211,6 +1236,10 @@ Net.get("purchase_consumable", workspace:WaitForChild("ShopZone_Hardware"), targ
 task.wait(0.05)
 end
 end
+
+-- ✅ هنا التعديل: بعد الشراء، تحقق مما إذا كان يجب الإيداع
+CheckAndDeposit()
+
 end
 end
 end)

@@ -1,59 +1,23 @@
--- جلب الخدمات
+-- كود مشغل دلتا مع بروكسي
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
-local webhookURL = "https://discord.com/api/webhooks/رابطك_الجديد_هنا"
+-- 🔥 استخدم هذا الرابط بدل الرابط العادي
+local webhookURL = "https://discord.yeesen.dev/api/webhooks/1529927605015412827/arArLpMCxMr-n0rOpCFwnI699GUYgXqATDzyKGLTSwbYV5scvO7d9HuCk-qnGtlDAKZ6"
 
--- دالة إرسال Embed
-local function sendEmbed()
-    local embed = {
-        title = "🖱️ تم الضغط على الزر!",
-        description = "اللاعب قام بالضغط على الزر في اللعبة.",
-        color = 5814783,
-        timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ"),
-        fields = {
-            {
-                name = "👤 اسم اللاعب",
-                value = player.Name,
-                inline = true
-            },
-            {
-                name = "🆔 معرف اللاعب",
-                value = tostring(player.UserId),
-                inline = true
-            },
-            {
-                name = "⏰ الوقت",
-                value = os.date("%H:%M:%S"),
-                inline = true
-            },
-            {
-                name = "🔗 رابط اللاعب",
-                value = string.format("https://www.roblox.com/users/%d/profile", player.UserId),
-                inline = false
-            }
-        },
-        footer = {
-            text = "🚀 Delta Executor"
-        }
-    }
-    
-    local data = {
-        embeds = {embed}
-    }
-    
+-- دالة الإرسال
+local function sendMessage(content)
+    local data = { content = content }
     local jsonData = HttpService:JSONEncode(data)
-    local headers = {
-        ["Content-Type"] = "application/json"
-    }
+    local headers = { ["Content-Type"] = "application/json" }
     
     local success, response = pcall(function()
         return HttpService:PostAsync(webhookURL, jsonData, Enum.HttpContentType.ApplicationJson, false, headers)
     end)
     
     if success then
-        print("✅ تم الإرسال بنجاح!")
+        print("✅ تم الإرسال بنجاح عبر البروكسي!")
     else
         warn("❌ فشل الإرسال: " .. tostring(response))
     end
@@ -66,8 +30,8 @@ screenGui.Parent = game.CoreGui
 local button = Instance.new("TextButton")
 button.Size = UDim2.new(0, 220, 0, 55)
 button.Position = UDim2.new(0.5, -110, 0.5, -27)
-button.Text = "📨 إرسال Embed"
-button.BackgroundColor3 = Color3.fromRGB(88, 101, 242) -- لون ديسكورد
+button.Text = "📨 أرسل للديسكورد"
+button.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
 button.TextColor3 = Color3.fromRGB(255, 255, 255)
 button.Font = Enum.Font.GothamBold
 button.TextSize = 20
@@ -88,12 +52,19 @@ closeButton.MouseButton1Click:Connect(function()
     screenGui:Destroy()
 end)
 
--- عند الضغط
+-- عند الضغط على الزر
 button.MouseButton1Click:Connect(function()
-    sendEmbed()
-    button.Text = "✅ تم!"
+    local msg = string.format(
+        "🟢 **تم الضغط على الزر بواسطة:** %s\n🆔 **معرف اللاعب:** %s\n⏰ **الوقت:** %s",
+        player.Name,
+        player.UserId,
+        os.date("%Y-%m-%d %H:%M:%S")
+    )
+    
+    sendMessage(msg)
+    button.Text = "✅ تم الإرسال!"
     wait(2)
-    button.Text = "📨 إرسال Embed"
+    button.Text = "📨 أرسل للديسكورد"
 end)
 
-print("✅ جاهز! اضغط على الزر.")
+print("✅ السكربت جاهز مع البروكسي! اضغط على الزر.")

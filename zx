@@ -343,30 +343,9 @@ local Config = {
     FishingRod = "Smart Select",
     FishingWormtec = "Smart Select",
     FishingBaitAmount = 1,
-    -- Keep required configs for compatibility
-    AutoFarmATM = false,
-    EnabledVechine = false,
-    EnabledDespoit = false,
-    AutoRepair = false,
-    SelectSwiperType = "Smart Select",
-    SwiperLimit = 3,
-    VechineType = "car",
-    InstantTeleportSpeed = 35,
-    InstantVechineSpeed = 55,
     StopWalking = false,
     Running = false,
-    keys = {},
     PathfindingModifierCreater = false,
-    EnabledATMViewer = false,
-    LastVehicleTeleport = 0,
-    AntiDied = false,
-    StartFarmJob = false,
-    SelectedJob = "None",
-    MoneyDraw = 250,
-    GoldBox = false,
-    Quick11Rounds = 0,
-    AutoDepositJob = false,
-    DepositThreshold = 500,
     Respawn = false
 }
 
@@ -379,21 +358,6 @@ local func = {}
 
 local function distTo(v3)
     return (v3 - RootPart.Position).Magnitude
-end
-
-local function JobNow()
-    return Client:GetAttribute('Job')
-end
-
-local function CheckingIsProgess()
-    local p = PlayerGui:FindFirstChild('ProgressBar')
-    if p then
-        local f = p:FindFirstChild('ProgressBarFrame')
-        if f then
-            return f.Visible
-        end
-    end
-    return false
 end
 
 local function GetAtmIsNotHackedJob(atm)
@@ -409,49 +373,6 @@ local function GetAtmIsNotHackedJob(atm)
         return atm:GetAttribute(keys[3]) == false
     end
     return false
-end
-
-local function GetNearThing(folder, path, condition)
-    local closest, shortestDist = nil, math.huge
-    if not folder then
-        return nil
-    end
-    for _, obj in ipairs(folder:GetChildren()) do
-        if string.find(obj.Name, path) then
-            if not condition or condition(obj) then
-                local dist = math.huge
-                if obj:IsA("BasePart") then
-                    dist = distTo(obj.Position)
-                elseif obj:IsA('Model') and obj.PrimaryPart then
-                    dist = distTo(obj.PrimaryPart.Position)
-                end
-                if dist < shortestDist then
-                    closest = obj
-                    shortestDist = dist
-                end
-            end
-        end
-    end
-    return closest
-end
-
-local function Getunpack(parent, callback)
-    for i, v in ipairs(parent:GetChildren()) do
-        pcall(callback, v, i)
-    end
-end
-
-local function FindItem(name)
-    local t = Backpack:FindFirstChild(name) or Character:FindFirstChild(name)
-    return {t ~= nil, t}
-end
-
-local function AutoDepositMoney()
-    local money = tonumber(PlayerGui.TopRightHud.Holder.Frame.MoneyTextLabel.Text:match('%$(%d+)')) or 0
-    if money > 0 then
-        Net.get("transfer_funds", "hand", "bank", money)
-        task.wait(0.3)
-    end
 end
 
 -- Helper Functions for Fishing
@@ -546,10 +467,6 @@ function Sf:GetLevel()
     local levelText = TextLabel.Text
     local level = tonumber(levelText:match("%d+"))
     return level or 1
-end
-
-function Sf:CheckingIsMinigame()
-    return PlayerGui.SliderMinigame:FindFirstChildOfClass("Frame").Visible
 end
 
 function Sf:ForceStop()
@@ -690,7 +607,7 @@ local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/rel
 local Window = WindUI:CreateWindow({
     Title = "Mercy Hub | Fishing",
     Icon = "rbxassetid://118194721156015",
-    Author = "[🔫]-Block Spin | discord.gg/z4x4TE6gGT",
+    Author = "discord.gg/V",
     Folder = "boss ter",
     Size = UDim2.fromOffset(580, 460),
     MinSize = Vector2.new(560, 350),

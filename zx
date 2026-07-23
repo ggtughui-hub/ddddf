@@ -924,14 +924,14 @@ end
 end
 end
 if hasRod and hasBait then
--- 🎯 الإحداثيات الثابتة (ما تنزل للبحر)
-local FISH_SPOT = Vector3.new(85.9, 253, 938.7)
-local THROW_TARGET = Vector3.new(85.9, 242.0, 924.7)
+-- 🎯 الإحداثيات الجديدة
+local FISH_SPOT = Vector3.new(85.9, 251, 938.7)
+local THROW_TARGET = Vector3.new(85.9, 249, 924.7)
 
 Sf:Teleport(FISH_SPOT, Config.AutoFarmFishing)
-task.wait(0.5)
+task.wait(0.8)
 
--- 🔒 تثبيت الشخصية على الإحداثيات (Anchor)
+-- 🔒 تثبيت الشخصية على الإحداثيات (Anchor) عشان ما تنزل للبحر
 local char = Client.Character or Client.CharacterAdded:Wait()
 local hrp = char:FindFirstChild("HumanoidRootPart")
 if hrp then
@@ -942,7 +942,7 @@ end
 if rodUid and baitUid then
 if not rodEquipped then
 Net.get("toggle_equip_item", tostring(rodUid))
-task.wait(0.01)
+task.wait(0.3)
 local char = Client and Client.Character
 local backpack = Client and Client:FindFirstChild("Backpack")
 if char and backpack then
@@ -950,17 +950,21 @@ local tool = backpack:FindFirstChild(actualRodName)
 local humanoid = char:FindFirstChildOfClass("Humanoid")
 if tool and humanoid then
 humanoid:EquipTool(tool)
-task.wait(0.01)
+task.wait(0.3)
 end
 end
 end
 Net.get("equip_ammo_on_item", rodUid, baitUid)
-task.wait(0.01)
+task.wait(0.3)
 local char = Client and Client.Character
 if char then
 local rodTool = char:WaitForChild(actualRodName, 5)
 if rodTool then
--- 🎣 رمي الصنارة على نفس الإحداثيات
+-- 🔒 نأكد إن الشخصية ثابتة قبل الرمي
+if hrp then
+hrp.CFrame = CFrame.new(FISH_SPOT)
+end
+-- 🎣 رمي الصنارة على الإحداثيات الجديدة
 Net.get("throw_rod", rodTool, THROW_TARGET)
 local timeout = tick() + 30
 local progressBarVisible = false
@@ -985,7 +989,7 @@ Net.send("reel_ended", rodTool, true)
 end
 end
 end
-task.wait(0.01)
+task.wait(0.3)
 end
 
 -- 🔓 فك التثبيت بعد انتهاء الدورة

@@ -1,5 +1,5 @@
 -- ==========================================
--- الكود الكامل مع نظام الحماية المتكامل + نظام الإيداع المحسن
+-- الكود الكامل مع نظام الإيداع المحسن
 -- ==========================================
 
 for _, obj in pairs(workspace:GetDescendants()) do
@@ -292,7 +292,7 @@ Client.CharacterAdded:Connect(function(newCharacter)
 end)
 
 -- ==========================================
--- إعدادات الكونفيج (مع متغير Paused للحماية)
+-- إعدادات الكونفيج
 -- ==========================================
 local Config = {
     AutoFarmFishing = false,
@@ -302,7 +302,9 @@ local Config = {
     Respawn = false,
     AutoDepositJob = false,
     DepositThreshold = 500,
-    Paused = false
+    Paused = false,
+    StopWalking = false,
+    Running = false
 }
 
 local function c()
@@ -442,7 +444,7 @@ function Sf:ATMMoney()
 end
 
 -- ==========================================
--- نظام الإيداع المحسن
+-- نظام الإيداع المحسن (يشتغل بشكل صحيح)
 -- ==========================================
 local function GetAtmIsNotHackedJob(atm)
     if not atm then return false end
@@ -457,23 +459,23 @@ local function GetAtmIsNotHackedJob(atm)
     return false
 end
 
+-- ✅ دالة الإيداع الرئيسية - توقف الفارم وتودع
 local function CheckAndDeposit()
-    if not Config.AutoDepositJob then return end
+    if not Config.AutoDepositJob then return false end
     
     local handMoney = Sf:GetMoney()
-    if handMoney < Config.DepositThreshold then return end
-    
-    -- ✅ إيقاف الفارم مؤقتاً
-    Config.Paused = true
-    print("💰 تم إيقاف الفارم مؤقتاً للإيداع...")
-    
-    -- إيقاف الحركة
-    if c() then
-        c().StopWalking = true
-        c()['Running'] = false
+    if handMoney < Config.DepositThreshold then 
+        return false 
     end
     
-    -- البحث عن أقرب ATM
+    print("💰 تم الوصول للحد الأقصى ($" .. handMoney .. ") - جاري الإيداع...")
+    
+    -- ✅ 1. إيقاف الفارم فوراً
+    Config.Paused = true
+    Config.StopWalking = true
+    Config.Running = false
+    
+    -- ✅ 2. البحث عن أقرب ATM
     local shortestDist, atmPos, targetAtm = math.huge, nil, nil
     local ATMFolder = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("Props") and workspace.Map.Props:FindFirstChild("ATMs")
     
@@ -501,43 +503,41 @@ local function CheckAndDeposit()
         end
     end
     
-    -- إذا ما لقى ATM، استخدم موقع افتراضي
     if not atmPos then
         atmPos = Vector3.new(179.200882, 255.290543, -236.355896)
         print("⚠️ لم يتم العثور على ATM، استخدام موقع افتراضي")
     end
     
-    -- التوجه إلى ATM
-    if atmPos then
-        print("🚶 جاري التوجه إلى ATM...")
-        Sf:Teleport(atmPos, true)
-        task.wait(1)
-        
-        -- التأكد من الوصول
-        local timeout = tick() + 10
-        while (atmPos - RootPart.Position).Magnitude > 10 and tick() < timeout do
-            task.wait(0.5)
-        end
-        
-        -- إيداع كل المال
-        local amt = Sf:GetMoney()
-        if amt > 0 then
-            print("💳 جاري إيداع $" .. amt)
-            Net.get("transfer_funds", "hand", "bank", amt)
-            task.wait(1)
-            print("✅ تم الإيداع بنجاح!")
-        else
-            print("⚠️ لا يوجد مال للإيداع")
-        end
+    -- ✅ 3. التوجه إلى ATM
+    print("🚶 جاري التوجه إلى ATM...")
+    Sf:Teleport(atmPos, true)
+    task.wait(1)
+    
+    -- التأكد من الوصول
+    local timeout = tick() + 10
+    while (atmPos - RootPart.Position).Magnitude > 10 and tick() < timeout do
+        task.wait(0.5)
     end
     
-    -- ✅ استئناف الفارم
+    -- ✅ 4. إيداع كل المال
+    local amt = Sf:GetMoney()
+    if amt > 0 then
+        print("💳 جاري إيداع $" .. amt)
+        Net.get("transfer_funds", "hand", "bank", amt)
+        task.wait(1)
+        print("✅ تم الإيداع بنجاح! المتبقي: $" .. Sf:GetMoney())
+    end
+    
+    -- ✅ 5. استئناف الفارم
     Config.Paused = false
+    Config.StopWalking = false
     print("🔄 استئناف الفارم...")
+    
+    return true
 end
 
 -- ==========================================
--- ⭐ نظام الحماية المتكامل (المعدل)
+-- ⭐ نظام الحماية المتكامل
 -- ==========================================
 local function SetupNotificationMonitor()
     local SendRemote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("Send")
@@ -576,7 +576,7 @@ end
 SetupNotificationMonitor()
 
 -- ==========================================
--- دالة Teleport المعدلة مع فحص Paused
+-- دالة Teleport
 -- ==========================================
 function Sf:Teleport(destination, value, t, speed)
     if Config.Paused then 
@@ -647,6 +647,9 @@ function Sf:Teleport(destination, value, t, speed)
     c()['Running'] = false
 end
 
+-- ==========================================
+-- WindUI
+-- ==========================================
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
@@ -1105,6 +1108,11 @@ FishingTab:Toggle({
     Value = false,
     Callback = function(Value)
         Config.AutoDepositJob = Value
+        if Value then
+            print("✅ Auto Deposit Enabled - Threshold: $" .. Config.DepositThreshold)
+        else
+            print("❌ Auto Deposit Disabled")
+        end
     end,
 })
 
@@ -1115,13 +1123,14 @@ FishingTab:Slider({
     Value = { Min = 100, Max = 5000, Default = 500 },
     Callback = function(Value)
         Config.DepositThreshold = Value
+        print("💰 Deposit Threshold set to: $" .. Value)
     end,
 })
 
 FishingTab:Divider()
 
 -- ==========================================
--- Auto Farm Fishing مع فحص Paused ونظام الإيداع
+-- Auto Farm Fishing (المعدل بالكامل)
 -- ==========================================
 FishingTab:Toggle({
     Title = "Auto Farm Fishing",
@@ -1131,8 +1140,21 @@ FishingTab:Toggle({
     Callback = function(Value)
         Config.AutoFarmFishing = Value
         if Value then
+            print("🎣 Auto Farm Started!")
             task.spawn(function()
                 while Config.AutoFarmFishing do
+                    -- ✅ فحص الإيداع أولاً (الأولوية القصوى)
+                    if Config.AutoDepositJob then
+                        local currentMoney = Sf:GetMoney()
+                        if currentMoney >= Config.DepositThreshold then
+                            -- ✅ إيقاف كل شيء وتنفيذ الإيداع
+                            CheckAndDeposit()
+                            -- بعد الإيداع، نكمل الفارم
+                            continue
+                        end
+                    end
+                    
+                    -- ✅ فحص التوقف المؤقت
                     if Config.Paused then 
                         task.wait(0.5) 
                         continue 
@@ -1264,11 +1286,9 @@ FishingTab:Toggle({
                                 Net.get("sell_all_fish")
                                 task.wait(1)
                             end
-                            
-                            -- ✅ الإيداع بعد البيع
-                            CheckAndDeposit()
                         end
 
+                        -- ✅ شراء الطعم والصنارة
                         local baitAmt = Config.FishingBaitAmount or 1
                         local moneyNeeded = 0
                         if not hasRod then
@@ -1281,6 +1301,8 @@ FishingTab:Toggle({
                                 if bait.Name == targetBait then moneyNeeded = moneyNeeded + (bait.Price * baitAmt) break end
                             end
                         end
+                        
+                        -- ✅ سحب فلوس من البنك إذا لزم الأمر
                         while Sf:GetMoney() < moneyNeeded and Config.AutoFarmFishing do
                             if Config.Paused then 
                                 task.wait(0.5) 
@@ -1342,6 +1364,7 @@ FishingTab:Toggle({
                                 task.wait(1)
                             end
                         end
+                        
                         local shopPos = Vector3.new(-136.406662, 254.851074, 153.555588)
                         Sf:Teleport(shopPos, Config.AutoFarmFishing)
                         task.wait(0.01)
@@ -1359,6 +1382,8 @@ FishingTab:Toggle({
                     end
                 end
             end)
+        else
+            print("🎣 Auto Farm Stopped!")
         end
     end,
 })

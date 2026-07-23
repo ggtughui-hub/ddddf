@@ -456,6 +456,89 @@ local function CheckAndDeposit()
 end
 
 -- ==========================================
+-- دالة Teleport
+-- ==========================================
+function Sf:Teleport(destination, value)
+    if Config.Paused then 
+        return 
+    end
+    
+    Config.StopWalking = false
+    Config.Running = true
+    
+    local char = Client.Character or Client.CharacterAdded:Wait()
+    local RootPart = char:WaitForChild("HumanoidRootPart")
+    local Humanoid = char:WaitForChild("Humanoid")
+    
+    local path = PathfindingService:CreatePath({
+        AgentCanJump = true,
+        AgentJumpHeight = 2.5,
+        AgentHeight = 8,
+        AgentRadius = 2.5,
+        AgentMaxSlope = 90,
+        Costs = {BlockedNode = 50, DoorArea = 1}
+    })
+    
+    local success = pcall(function()
+        path:ComputeAsync(RootPart.Position, destination)
+    end)
+    
+    if not success then
+        Config.Running = false
+        return
+    end
+    
+    if path.Status == Enum.PathStatus.Success then
+        local waypoints = path:GetWaypoints()
+        for _, wp in pairs(waypoints) do
+            if Config.Paused or Config.StopWalking or not value then
+                break
+            end
+            
+            local offsetY = (wp.Action == Enum.PathWaypointAction.Jump) and 10 or 4
+            local targetPos = wp.Position + Vector3.new(0, offsetY, 0)
+            local startPos = RootPart.Position
+            local dir = (targetPos - startPos).Unit
+            local dist = (targetPos - startPos).Magnitude
+            local movedDist = 0
+            local speed = 34
+            local startTime = tick()
+            
+            while movedDist < dist and not Config.StopWalking and value do
+                if Config.Paused then
+                    break
+                end
+                
+                task.wait()
+                
+                if Config.StopWalking or not value or Humanoid.Health <= 0 then
+                    break
+                end
+                
+                local elapsedTime = tick() - startTime
+                movedDist = math.min(elapsedTime * speed, dist)
+                local newPos = startPos + dir * movedDist
+                
+                if Humanoid.Sit then
+                    Humanoid.Sit = false
+                end
+                
+                RootPart:PivotTo(CFrame.new(newPos))
+                pcall(function()
+                    Net.send("set_sprinting_1", true)
+                end)
+            end
+            
+            if Config.Paused or Config.StopWalking or not value then
+                break
+            end
+        end
+    end
+    
+    Config.Running = false
+end
+
+-- ==========================================
 -- دالة شراء المستلزمات (مع الإيداع أولاً)
 -- ==========================================
 local function BuySupplies(targetRod, targetBait, hasRod, hasBait)
@@ -610,88 +693,26 @@ end
 SetupNotificationMonitor()
 
 -- ==========================================
--- دالة Teleport
+-- تعريف FishingRods و FishingBaits قبل استخدامهم
 -- ==========================================
-function Sf:Teleport(destination, value)
-    if Config.Paused then 
-        return 
-    end
-    
-    Config.StopWalking = false
-    Config.Running = true
-    
-    local char = Client.Character or Client.CharacterAdded:Wait()
-    local RootPart = char:WaitForChild("HumanoidRootPart")
-    local Humanoid = char:WaitForChild("Humanoid")
-    
-    local path = PathfindingService:CreatePath({
-        AgentCanJump = true,
-        AgentJumpHeight = 2.5,
-        AgentHeight = 8,
-        AgentRadius = 2.5,
-        AgentMaxSlope = 90,
-        Costs = {BlockedNode = 50, DoorArea = 1}
-    })
-    
-    local success = pcall(function()
-        path:ComputeAsync(RootPart.Position, destination)
-    end)
-    
-    if not success then
-        Config.Running = false
-        return
-    end
-    
-    if path.Status == Enum.PathStatus.Success then
-        local waypoints = path:GetWaypoints()
-        for _, wp in pairs(waypoints) do
-            if Config.Paused or Config.StopWalking or not value then
-                break
-            end
-            
-            local offsetY = (wp.Action == Enum.PathWaypointAction.Jump) and 10 or 4
-            local targetPos = wp.Position + Vector3.new(0, offsetY, 0)
-            local startPos = RootPart.Position
-            local dir = (targetPos - startPos).Unit
-            local dist = (targetPos - startPos).Magnitude
-            local movedDist = 0
-            local speed = 34
-            local startTime = tick()
-            
-            while movedDist < dist and not Config.StopWalking and value do
-                if Config.Paused then
-                    break
-                end
-                
-                task.wait()
-                
-                if Config.StopWalking or not value or Humanoid.Health <= 0 then
-                    break
-                end
-                
-                local elapsedTime = tick() - startTime
-                movedDist = math.min(elapsedTime * speed, dist)
-                local newPos = startPos + dir * movedDist
-                
-                if Humanoid.Sit then
-                    Humanoid.Sit = false
-                end
-                
-                RootPart:PivotTo(CFrame.new(newPos))
-                pcall(function()
-                    Net.send("set_sprinting_1", true)
-                end)
-            end
-            
-            if Config.Paused or Config.StopWalking or not value then
-                break
-            end
-        end
-    end
-    
-    Config.Running = false
-end
+local FishingRods = {
+    {Name = "FishingRodUltimate", Level = 60, Price = 5000},
+    {Name = "FishingRodAdvanced", Level = 35, Price = 2300},
+    {Name = "FishingRodPro", Level = 20, Price = 800},
+    {Name = "FishingRodRegular", Level = 1, Price = 100}
+}
+local FishingBaits = {
+    {Name = "PrawntecUltimate", Level = 45, Price = 45},
+    {Name = "PrawntecPro", Level = 30, Price = 40},
+    {Name = "PrawntecRegular", Level = 25, Price = 35},
+    {Name = "WormtecUltimate", Level = 15, Price = 30},
+    {Name = "WormtecPro", Level = 8, Price = 25},
+    {Name = "WormtecRegular", Level = 1, Price = 20}
+}
 
+-- ==========================================
+-- بناء الواجهة (WindUI)
+-- ==========================================
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
@@ -767,6 +788,10 @@ if input.KeyCode == Enum.KeyCode.T then
 Window:Toggle()
 end
 end)
+
+-- ==========================================
+-- باقي التابات (Esp, Player, Server, Fishing)
+-- ==========================================
 local EspTab = Window:Tab({
 Title = 'Esp',
 Icon = 'eye',
@@ -994,7 +1019,8 @@ end
 end
 end
 end)
-endend
+end
+end
 })
 local ServerTab = Window:Tab({
 Title = 'Server',
@@ -1087,27 +1113,15 @@ local FishingTab = Window:Tab({
 Title = 'Fishing',
 Icon = 'fishing-rod',
 })
-local FishingRods = {
-{Name = "FishingRodUltimate", Level = 60, Price = 5000},
-{Name = "FishingRodAdvanced", Level = 35, Price = 2300},
-{Name = "FishingRodPro", Level = 20, Price = 800},
-{Name = "FishingRodRegular", Level = 1, Price = 100}
-}
-local FishingBaits = {
-{Name = "PrawntecUltimate", Level = 45, Price = 45},
-{Name = "PrawntecPro", Level = 30, Price = 40},
-{Name = "PrawntecRegular", Level = 25, Price = 35},
-{Name = "WormtecUltimate", Level = 15, Price = 30},
-{Name = "WormtecPro", Level = 8, Price = 25},
-{Name = "WormtecRegular", Level = 1, Price = 20}
-}
+
 Config.AutoFarmFishing = false
 Config.FishingRod = "Smart Select"
 Config.FishingWormtec = "Smart Select"
 Config.FishingBaitAmount = 1
-FishingTab:Section({ Title = "Auto Farm:" })
 
+FishingTab:Section({ Title = "Auto Farm:" })
 FishingTab:Section({ Title = "Deposit Settings:" })
+
 FishingTab:Toggle({
     Title = "Auto Deposit Money",
     Desc = "يودع المال تلقائياً عند الوصول للحد المحدد",
@@ -1137,7 +1151,6 @@ Config.AutoFarmFishing = Value
 if Value then
 task.spawn(function()
 while Config.AutoFarmFishing do
-    -- ✅ نظام الحماية - يتوقف فقط عند تفعيل الحماية
     if Config.Paused then 
         task.wait(1) 
         continue 
@@ -1263,14 +1276,13 @@ local touchPart = sellBeacon and sellBeacon:FindFirstChild("TouchPart")
 if touchPart then
 Sf:Teleport(touchPart.Position, Config.AutoFarmFishing)
 task.wait(0.5)
-local Net = require(game:GetService("ReplicatedStorage").Modules.Core.Net)
 Net.get("sell_all_fish")
 task.wait(1)
 print("🐟 تم بيع جميع الأسماك")
 end
 end
 
--- ✅ استدعاء دالة الشراء (التي تحتوي على الإيداع والسحب)
+-- ✅ استدعاء دالة الشراء
 BuySupplies(targetRod, targetBait, hasRod, hasBait)
 
 end
@@ -1279,6 +1291,7 @@ end)
 end
 end,
 })
+
 FishingTab:Dropdown({
 Title = "Select Rod",
 Values = {"Smart Select", "FishingRodUltimate", "FishingRodAdvanced", "FishingRodPro", "FishingRodRegular"},

@@ -1,4 +1,3 @@
-
 for _, obj in pairs(workspace:GetDescendants()) do
 if obj:IsA("Model") and obj.Name == "DoorSystem" then
 obj:Destroy()
